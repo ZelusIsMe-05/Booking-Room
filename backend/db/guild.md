@@ -1,5 +1,7 @@
 # Database Setup Guide
 
+Làm lần lượt từ trên xuống.
+
 ## 1. Cài dependencies
 
 ```
@@ -7,28 +9,25 @@ cd backend
 npm install knex pg dotenv
 ```
 
-## 2. Cấu hình kết nối
+## 2. Tạo file `.env`
 
-Tạo file `.env`
+Tạo `backend/.env`.
 
-Các biến được `knexfile.js` đọc: `DATABASE_URL`
-
-
-## 3. Chạy migration
+## 4. Chạy migration (tạo 19 bảng)
 
 ```
-npx knex migrate:latest      # tạo toàn bộ 19 bảng
+npx knex migrate:latest
 ```
 
-# 3-Bonus. Kiểm tra bước 3 (Không chạy cũng được)
+## 5. Nạp dữ liệu mẫu (seed)
 
 ```
+npx knex seed:run
+```
+
+## Lệnh kiểm tra (tuỳ chọn)
+
+```
+npx knex migrate:status      # xem migration nào đã chạy
 npx knex migrate:rollback    # lùi lại 1 batch
-npx knex migrate:status      # xem trạng thái
-```
-
-## 4. Nạp dữ liệu mẫu (seed)
-
-```
-npx knex seed:run            # chạy toàn bộ file trong db/seeds
 ```
