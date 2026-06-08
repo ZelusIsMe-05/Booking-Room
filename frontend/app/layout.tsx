@@ -3,11 +3,10 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Booking-Room | Tìm Phòng Ưng Ý, Định Cư Lâu Dài',
+    default: 'Booking-Room',
     template: '%s | Booking-Room',
   },
-  description:
-    'Hàng ngàn phòng trọ, căn hộ dịch vụ và chỗ ở ghép xác thực, đầy đủ tiện nghi.',
+  description: 'Hệ thống quản lý và đặt phòng trực tuyến uy tín, tiện lợi.',
 };
 
 export default function RootLayout({

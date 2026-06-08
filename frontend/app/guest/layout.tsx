@@ -1,5 +1,11 @@
-// Layout cho route group (guest) - trang công khai, ai cũng vào được
-// File này hiện tại chỉ pass-through children vì chưa cần wrapper đặc biệt
+import React from 'react';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Tìm phòng trọ, căn hộ dịch vụ',
+  description: 'Tìm kiếm phòng trọ, căn hộ dịch vụ xác thực, giá rẻ và đầy đủ tiện nghi.',
+};
+
 export default function GuestLayout({
   children,
 }: {
