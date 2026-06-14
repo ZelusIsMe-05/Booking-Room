@@ -1,10 +1,14 @@
 const roomService = require('../../services/host/roomService');
-const { success } = require('../../utils/responseHelper');
+const { sendSuccess } = require('../../utils/responseHelper');
 
 async function createRoom(req, res, next) {
   try {
     const room = await roomService.createRoom(req.user, req.body);
-    return success(res, { room }, 'Room submitted for approval', 201);
+    return sendSuccess(res, {
+      status: 201,
+      message: 'Room submitted for approval',
+      data: { room },
+    });
   } catch (err) {
     next(err);
   }
@@ -13,7 +17,11 @@ async function createRoom(req, res, next) {
 async function listMyRooms(req, res, next) {
   try {
     const rooms = await roomService.listMyRooms(req.user);
-    return success(res, { rooms }, 'Host rooms fetched successfully');
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Host rooms fetched successfully',
+      data: { rooms },
+    });
   } catch (err) {
     next(err);
   }
@@ -22,7 +30,11 @@ async function listMyRooms(req, res, next) {
 async function updateRoom(req, res, next) {
   try {
     const room = await roomService.updateRoom(req.user, req.params.id, req.body);
-    return success(res, { room }, 'Room updated and submitted for approval');
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Room updated and submitted for approval',
+      data: { room },
+    });
   } catch (err) {
     next(err);
   }
@@ -31,7 +43,10 @@ async function updateRoom(req, res, next) {
 async function deleteRoom(req, res, next) {
   try {
     await roomService.deleteRoom(req.user, req.params.id);
-    return success(res, null, 'Room deleted successfully');
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Room deleted successfully',
+    });
   } catch (err) {
     next(err);
   }

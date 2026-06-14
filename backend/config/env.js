@@ -3,7 +3,7 @@ const dotenv = require('dotenv');
 
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
-const required = ['DATABASE_URL', 'JWT_SECRET'];
+const required = ['DATABASE_URL', 'JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'];
 const missing = required.filter((key) => !process.env[key] || String(process.env[key]).trim() === '');
 
 if (missing.length > 0) {
@@ -14,9 +14,13 @@ const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT || 5000),
   databaseUrl: process.env.DATABASE_URL,
-  jwtSecret: process.env.JWT_SECRET,
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS || 10),
+  jwt: {
+    accessSecret: process.env.JWT_ACCESS_SECRET,
+    accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
+    refreshSecret: process.env.JWT_REFRESH_SECRET,
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+  },
 };
 
 if (!Number.isInteger(env.port) || env.port <= 0) {

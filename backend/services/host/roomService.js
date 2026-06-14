@@ -1,5 +1,5 @@
 const Room = require('../../models/Room');
-const { AppError } = require('../../middlewares/errorHandler');
+const AppError = require('../../utils/AppError');
 
 function normalizeImages(payload) {
   if (Array.isArray(payload.images)) return payload.images.filter(Boolean);

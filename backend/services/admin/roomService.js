@@ -1,5 +1,5 @@
 const Room = require('../../models/Room');
-const { AppError } = require('../../middlewares/errorHandler');
+const AppError = require('../../utils/AppError');
 
 async function listPendingRooms() {
   return Room.listPendingRooms();

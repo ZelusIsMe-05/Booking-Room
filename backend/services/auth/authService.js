@@ -1,234 +1,201 @@
-const db = require('../../config/db');
-const User = require('../../models/User');
-const { hashPassword, verifyPassword } = require('../../utils/hashPassword');
-const { signAccessToken } = require('../../utils/jwt');
-const { AppError } = require('../../middlewares/errorHandler');
-const { normalizeRole } = require('../../middlewares/roleMiddleware');
+const authRepository = require('../../repositories/auth/authRepository');
+const AppError = require('../../utils/AppError');
+const { comparePassword } = require('../../utils/hashPassword');
+const {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+  getUserIdFromPayload,
+} = require('../../utils/jwt');
+const env = require('../../config/env');
+const {
+  USER_STATUS,
+  MAX_FAILED_ATTEMPTS,
+  LOCK_DURATION_MINUTES,
+  FAILURE_REASON,
+  GENERIC_AUTH_ERROR_MESSAGE,
+} = require('../../config/authConstants');
 
-const LOGIN_LOCK_THRESHOLD = 5;
-const LOGIN_LOCK_MINUTES = 10;
-
-function toDbRole(role) {
-  if (!role) return 'TENANT';
-  const normalized = String(role).trim().toUpperCase();
-  if (normalized === 'HOST') return 'LANDLORD';
-  if (normalized === 'TENANT') return 'TENANT';
-  throw new AppError('role must be TENANT or HOST', 400);
-}
-
-function validatePassword(password) {
-  const errors = [];
-  if (typeof password !== 'string' || password.length < 8) errors.push('at least 8 characters');
-  if (!/[a-z]/.test(password)) errors.push('one lowercase letter');
-  if (!/[A-Z]/.test(password)) errors.push('one uppercase letter');
-  if (!/[0-9]/.test(password)) errors.push('one number');
-  if (!/[^A-Za-z0-9]/.test(password)) errors.push('one special character');
-  return errors;
-}
-
-function normalizeEmail(email) {
-  return String(email || '').trim().toLowerCase();
-}
-
-function normalizeUsername(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]/g, '')
-    .slice(0, 40);
-}
-
-async function buildUniqueUsername(email, requestedUsername) {
-  const base = normalizeUsername(requestedUsername || email.split('@')[0]) || `user${Date.now()}`;
-  let candidate = base;
-  let suffix = 1;
-
-  while (await User.findExistingIdentity({ email: `__${candidate}@local.invalid`, username: candidate })) {
-    candidate = `${base}${suffix}`;
-    suffix += 1;
-  }
-
-  return candidate;
-}
-
-function validateRegisterPayload(payload) {
-  const errors = {};
-  const email = normalizeEmail(payload.email);
-  const dbRole = toDbRole(payload.role);
-
-  if (!payload.fullName || String(payload.fullName).trim().length < 2) {
-    errors.fullName = 'fullName is required';
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errors.email = 'valid email is required';
-  }
-  if (payload.phoneNumber && !/^[0-9]{10,15}$/.test(String(payload.phoneNumber))) {
-    errors.phoneNumber = 'phoneNumber must contain 10 to 15 digits';
-  }
-  if (payload.password !== payload.confirmPassword) {
-    errors.confirmPassword = 'confirmPassword must match password';
-  }
-
-  const passwordErrors = validatePassword(payload.password || '');
-  if (passwordErrors.length > 0) {
-    errors.password = `password must contain ${passwordErrors.join(', ')}`;
-  }
-
-  if (dbRole === 'LANDLORD') {
-    if (!payload.idCardFrontUrl) errors.idCardFrontUrl = 'idCardFrontUrl is required for HOST registration';
-    if (!payload.idCardBackUrl) errors.idCardBackUrl = 'idCardBackUrl is required for HOST registration';
-  }
-
-  if (Object.keys(errors).length > 0) {
-    throw new AppError('Validation failed', 400, errors);
-  }
-
-  return { email, dbRole };
-}
-
-async function auditLogin({ userId = null, identifier, success, failureReason, req }) {
-  await db('login_audit_logs').insert({
-    user_id: userId,
-    login_identifier: identifier,
-    success,
-    failure_reason: failureReason || null,
-    ip_address: req.ip || null,
-    user_agent: req.get('user-agent') || null,
-  });
-}
-
-async function register(payload) {
-  const { email, dbRole } = validateRegisterPayload(payload);
-  const role = await User.findRole(dbRole);
-
-  if (!role) {
-    throw new AppError('Configured role not found', 500);
-  }
-
-  const username = await buildUniqueUsername(email, payload.username);
-  const existing = await User.findExistingIdentity({
-    email,
-    phoneNumber: payload.phoneNumber,
-    username,
-  });
-
-  if (existing) {
-    throw new AppError('Email, phone number, or username already exists', 409);
-  }
-
-  const passwordHash = await hashPassword(payload.password);
-  const user = await User.createUserWithProfile({
-    fullName: String(payload.fullName).trim(),
-    email,
-    phoneNumber: payload.phoneNumber || null,
-    username,
-    passwordHash,
-    roleId: role.role_id,
-    dbRole,
-    idCardFrontUrl: payload.idCardFrontUrl,
-    idCardBackUrl: payload.idCardBackUrl,
-  });
-  const token = signAccessToken(user);
-
-  return { user, token };
-}
-
-async function getSecurity(userId) {
-  let security = await db('account_security').where('user_id', userId).first();
-  if (!security) {
-    const [created] = await db('account_security').insert({ user_id: userId }).returning('*');
-    security = created;
-  }
-  return security;
-}
-
-async function recordFailedLogin(userId) {
-  const security = await getSecurity(userId);
-  const attempts = Number(security.failed_login_attempts || 0) + 1;
-  const lockedUntil =
-    attempts >= LOGIN_LOCK_THRESHOLD
-      ? db.raw(`CURRENT_TIMESTAMP + INTERVAL '${LOGIN_LOCK_MINUTES} minutes'`)
-      : security.locked_until;
-
-  await db('account_security').where('user_id', userId).update({
-    failed_login_attempts: attempts,
-    locked_until: lockedUntil,
-    updated_at: db.fn.now(),
-  });
-}
-
-async function recordSuccessfulLogin(userId) {
-  await db('account_security')
-    .insert({
-      user_id: userId,
-      failed_login_attempts: 0,
-      locked_until: null,
-      last_login_at: db.fn.now(),
-      updated_at: db.fn.now(),
-    })
-    .onConflict('user_id')
-    .merge({
-      failed_login_attempts: 0,
-      locked_until: null,
-      last_login_at: db.fn.now(),
-      updated_at: db.fn.now(),
-    });
-}
-
-async function login(payload, req) {
-  const identifier = String(payload.identifier || '').trim();
-  const password = payload.password;
-
-  if (!identifier || !password) {
-    throw new AppError('identifier and password are required', 400);
-  }
-
-  const row = await User.findByIdentifier(identifier);
-  const genericError = new AppError('Invalid credentials', 401);
-
-  if (!row) {
-    await auditLogin({ identifier, success: false, failureReason: 'USER_NOT_FOUND', req });
-    throw genericError;
-  }
-
-  const user = User.toPublicUser(row);
-
-  if (user.status !== 'ACTIVE') {
-    await auditLogin({ userId: user.user_id, identifier, success: false, failureReason: 'ACCOUNT_NOT_ACTIVE', req });
-    throw genericError;
-  }
-
-  const security = await getSecurity(user.user_id);
-  if (security.locked_until && new Date(security.locked_until) > new Date()) {
-    await auditLogin({ userId: user.user_id, identifier, success: false, failureReason: 'ACCOUNT_LOCKED', req });
-    throw new AppError('Account is temporarily locked', 423);
-  }
-
-  const passwordMatches = await verifyPassword(password, row.password);
-  if (!passwordMatches) {
-    await recordFailedLogin(user.user_id);
-    await auditLogin({ userId: user.user_id, identifier, success: false, failureReason: 'BAD_PASSWORD', req });
-    throw genericError;
-  }
-
-  await recordSuccessfulLogin(user.user_id);
-  await auditLogin({ userId: user.user_id, identifier, success: true, req });
-
+/**
+ * Shape the public, password-free view of a user for API responses.
+ */
+function toPublicUser(user) {
   return {
-    user: {
-      ...user,
-      role: normalizeRole(user.role),
-    },
-    token: signAccessToken(user),
+    userId: user.user_id,
+    fullName: user.full_name,
+    email: user.email,
+    phoneNumber: user.phone_number,
+    username: user.username,
+    role: user.role_name,
+    status: user.status,
   };
 }
 
+/**
+ * Issue an access + refresh token pair for an authenticated user.
+ */
+function issueTokens(user) {
+  const accessToken = signAccessToken({
+    userId: user.user_id,
+    role: user.role_name,
+    status: user.status,
+  });
+  const refreshToken = signRefreshToken({ userId: user.user_id });
+
+  return {
+    tokenType: 'Bearer',
+    accessToken,
+    accessExpiresIn: env.jwt.accessExpiresIn,
+    refreshToken,
+    refreshExpiresIn: env.jwt.refreshExpiresIn,
+  };
+}
+
+/**
+ * Authenticate a user by identifier + password.
+ * Implements the flow described in AI-output/1.4-login.md:
+ * generic errors to prevent account enumeration, temporary lockout after
+ * repeated failures, and a full audit trail for every attempt.
+ *
+ * @param {object} params
+ * @param {string} params.identifier email / phone / username
+ * @param {string} params.password plain-text password
+ * @param {string} [params.ipAddress]
+ * @param {string} [params.userAgent]
+ * @returns {Promise<{ user: object, tokens: object }>}
+ */
+async function login({ identifier, password, ipAddress, userAgent }) {
+  const audit = (success, failureReason, userId) =>
+    authRepository.writeLoginAudit({ userId, identifier, success, failureReason, ipAddress, userAgent });
+
+  const user = await authRepository.findUserByIdentifier(identifier);
+
+  if (!user) {
+    await audit(false, FAILURE_REASON.USER_NOT_FOUND, null);
+    throw new AppError('INVALID_CREDENTIALS', GENERIC_AUTH_ERROR_MESSAGE, 401);
+  }
+
+  // Seed/legacy users may not have a security row yet.
+  await authRepository.ensureAccountSecurity(user.user_id);
+  const security = await authRepository.getAccountSecurity(user.user_id);
+
+  // 1. Temporary lockout.
+  if (security && security.locked_until && new Date(security.locked_until) > new Date()) {
+    await audit(false, FAILURE_REASON.ACCOUNT_LOCKED, user.user_id);
+    throw new AppError(
+      'ACCOUNT_LOCKED',
+      'Tài khoản đang bị khóa tạm thời. Vui lòng thử lại sau.',
+      423,
+      { lockedUntil: new Date(security.locked_until).toISOString() },
+    );
+  }
+
+  // 2. Account status.
+  if (user.status === USER_STATUS.BANNED) {
+    await audit(false, FAILURE_REASON.BANNED, user.user_id);
+    throw new AppError('ACCOUNT_BANNED', 'Tài khoản đã bị cấm.', 403);
+  }
+  if (user.status !== USER_STATUS.ACTIVE) {
+    await audit(false, FAILURE_REASON.NOT_ACTIVE, user.user_id);
+    throw new AppError('ACCOUNT_NOT_ACTIVE', 'Tài khoản chưa được xác thực OTP.', 403);
+  }
+
+  // 3. Password.
+  const passwordMatches = await comparePassword(password, user.password);
+  if (!passwordMatches) {
+    const attempts = (security ? security.failed_login_attempts : 0) + 1;
+    const shouldLock = attempts >= MAX_FAILED_ATTEMPTS;
+    const lockedUntil = shouldLock
+      ? new Date(Date.now() + LOCK_DURATION_MINUTES * 60 * 1000)
+      : null;
+
+    await authRepository.registerFailedAttempt(user.user_id, lockedUntil);
+    await audit(false, FAILURE_REASON.WRONG_PASSWORD, user.user_id);
+
+    if (shouldLock) {
+      throw new AppError(
+        'ACCOUNT_LOCKED',
+        'Tài khoản đang bị khóa tạm thời. Vui lòng thử lại sau.',
+        423,
+        { lockedUntil: lockedUntil.toISOString() },
+      );
+    }
+    throw new AppError('INVALID_CREDENTIALS', GENERIC_AUTH_ERROR_MESSAGE, 401);
+  }
+
+  // 4. Success.
+  await authRepository.registerSuccessfulLogin(user.user_id);
+  await audit(true, null, user.user_id);
+
+  return {
+    user: toPublicUser(user),
+    tokens: issueTokens(user),
+  };
+}
+
+/**
+ * Exchange a valid refresh token for a fresh access token (stateless, no
+ * rotation): the refresh token is reused until it expires. The user is
+ * re-checked so a banned/deactivated account cannot keep refreshing.
+ *
+ * @param {object} params
+ * @param {string} params.refreshToken
+ * @returns {Promise<{ tokenType: string, accessToken: string, accessExpiresIn: string }>}
+ */
+async function refreshAccessToken({ refreshToken }) {
+  let payload;
+  try {
+    payload = verifyRefreshToken(refreshToken);
+  } catch (err) {
+    throw new AppError('INVALID_REFRESH_TOKEN', 'Refresh token không hợp lệ hoặc đã hết hạn.', 401);
+  }
+
+  const userId = getUserIdFromPayload(payload);
+  const user = await authRepository.findUserById(userId);
+
+  if (!user || user.status !== USER_STATUS.ACTIVE) {
+    throw new AppError('INVALID_REFRESH_TOKEN', 'Refresh token không hợp lệ hoặc đã hết hạn.', 401);
+  }
+
+  return {
+    tokenType: 'Bearer',
+    accessToken: signAccessToken({
+      userId: user.user_id,
+      role: user.role_name,
+      status: user.status,
+    }),
+    accessExpiresIn: env.jwt.accessExpiresIn,
+  };
+}
+
+/**
+ * Load the current user's public profile from a verified JWT identity.
+ * Implements AI-output/1.5-current-user.md.
+ *
+ * @param {string} userId UUID extracted from the access token (`sub`)
+ * @returns {Promise<object>} public user profile (incl. avatarUrl)
+ */
 async function getCurrentUser(userId) {
-  return User.findById(userId);
+  const user = await authRepository.findUserById(userId);
+
+  if (!user) {
+    throw new AppError('USER_NOT_FOUND', 'Tài khoản không tồn tại.', 404);
+  }
+  if (user.status === USER_STATUS.BANNED) {
+    throw new AppError('ACCOUNT_BANNED', 'Tài khoản đã bị cấm.', 403);
+  }
+  if (user.status !== USER_STATUS.ACTIVE) {
+    throw new AppError('ACCOUNT_NOT_ACTIVE', 'Tài khoản chưa được kích hoạt.', 403);
+  }
+
+  return {
+    ...toPublicUser(user),
+    avatarUrl: user.avatar_url || null,
+  };
 }
 
 module.exports = {
-  register,
   login,
+  refreshAccessToken,
   getCurrentUser,
 };

@@ -1,66 +1,37 @@
-const { verifyAccessToken } = require('../utils/jwt');
-const { AppError } = require('./errorHandler');
-const authService = require('../services/auth/authService');
+const { verifyAccessToken, getUserIdFromPayload } = require('../utils/jwt');
+const AppError = require('../utils/AppError');
 
-async function authenticate(req, res, next) {
+/**
+ * Authentication guard. Verifies the Bearer access token and exposes the
+ * caller's identity on `req.user` so downstream modules can read the UUID.
+ *
+ * On success: req.user = { userId, role, status }.
+ */
+function requireAuth(req, res, next) {
   try {
     const header = req.headers.authorization || '';
     const [scheme, token] = header.split(' ');
 
     if (scheme !== 'Bearer' || !token) {
-      throw new AppError('Authentication required', 401);
+      throw new AppError('UNAUTHENTICATED', 'Bạn cần đăng nhập để thực hiện thao tác này.', 401);
     }
 
     const payload = verifyAccessToken(token);
-    const user = await authService.getCurrentUser(payload.sub);
-
-    if (!user || user.status !== 'ACTIVE') {
-      throw new AppError('Authentication required', 401);
-    }
-
-    req.user = user;
-    next();
+    req.user = {
+      userId: getUserIdFromPayload(payload),
+      role: payload.role,
+      status: payload.status,
+    };
+    return next();
   } catch (err) {
-    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
-      next(new AppError('Authentication required', 401));
-      return;
+    if (err instanceof AppError) {
+      return next(err);
     }
-    next(err);
-  }
-}
-
-async function optionalAuthenticate(req, res, next) {
-  try {
-    const header = req.headers.authorization || '';
-    const [scheme, token] = header.split(' ');
-
-    if (!token) {
-      next();
-      return;
-    }
-
-    if (scheme !== 'Bearer') {
-      throw new AppError('Authentication required', 401);
-    }
-
-    const payload = verifyAccessToken(token);
-    const user = await authService.getCurrentUser(payload.sub);
-
-    if (user && user.status === 'ACTIVE') {
-      req.user = user;
-    }
-
-    next();
-  } catch (err) {
-    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
-      next(new AppError('Authentication required', 401));
-      return;
-    }
-    next(err);
+    // jsonwebtoken errors (expired / malformed / bad signature).
+    return next(new AppError('INVALID_TOKEN', 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.', 401));
   }
 }
 
 module.exports = {
-  authenticate,
-  optionalAuthenticate,
+  requireAuth,
 };

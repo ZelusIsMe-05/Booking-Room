@@ -1,48 +1,27 @@
 const express = require('express');
-const db = require('./config/db');
+const cors = require('cors');
+
 const authRoutes = require('./routes/auth/authRoutes');
-const guestRoomRoutes = require('./routes/guest/roomRoutes');
-const hostRoomRoutes = require('./routes/host/roomRoutes');
-const adminRoomRoutes = require('./routes/admin/roomRoutes');
-const { success } = require('./utils/responseHelper');
-const { notFound, errorHandler } = require('./middlewares/errorHandler');
+const { notFoundHandler, errorHandler } = require('./middlewares/errorHandler');
 
 const app = express();
 
-app.disable('x-powered-by');
-app.use(express.json({ limit: '1mb' }));
+// Trust the first proxy so req.ip / X-Forwarded-For resolve correctly in prod.
+app.set('trust proxy', 1);
 
+app.use(cors());
+app.use(express.json());
+
+// Liveness probe.
 app.get('/health', (req, res) => {
-  return success(res, {
-    status: 'ok',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-  });
+  res.json({ success: true, message: 'OK' });
 });
 
-app.get('/health/db', async (req, res, next) => {
-  try {
-    const result = await db.raw('SELECT 1 AS ok');
-    return success(res, {
-      status: 'ok',
-      database: 'reachable',
-      result: result.rows?.[0]?.ok || 1,
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.use('/auth', authRoutes);
+// Feature routes.
 app.use('/api/auth', authRoutes);
-app.use('/rooms', hostRoomRoutes);
-app.use('/rooms', guestRoomRoutes);
-app.use('/api/rooms', hostRoomRoutes);
-app.use('/api/rooms', guestRoomRoutes);
-app.use('/admin/rooms', adminRoomRoutes);
-app.use('/api/admin/rooms', adminRoomRoutes);
 
-app.use(notFound);
+// 404 + centralised error handling (must be last).
+app.use(notFoundHandler);
 app.use(errorHandler);
 
 module.exports = app;

@@ -1,10 +1,14 @@
 const roomService = require('../../services/admin/roomService');
-const { success } = require('../../utils/responseHelper');
+const { sendSuccess } = require('../../utils/responseHelper');
 
 async function listPendingRooms(req, res, next) {
   try {
     const rooms = await roomService.listPendingRooms();
-    return success(res, { rooms }, 'Pending rooms fetched successfully');
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Pending rooms fetched successfully',
+      data: { rooms },
+    });
   } catch (err) {
     next(err);
   }
@@ -13,7 +17,11 @@ async function listPendingRooms(req, res, next) {
 async function approveRoom(req, res, next) {
   try {
     const room = await roomService.approveRoom(req.params.id);
-    return success(res, { room }, 'Room approved successfully');
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Room approved successfully',
+      data: { room },
+    });
   } catch (err) {
     next(err);
   }
@@ -22,7 +30,11 @@ async function approveRoom(req, res, next) {
 async function rejectRoom(req, res, next) {
   try {
     const room = await roomService.rejectRoom(req.params.id);
-    return success(res, { room }, 'Room rejected successfully');
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Room rejected successfully',
+      data: { room },
+    });
   } catch (err) {
     next(err);
   }

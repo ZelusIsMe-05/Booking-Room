@@ -1,4 +1,4 @@
-const { AppError } = require('./errorHandler');
+const AppError = require('../utils/AppError');
 
 function normalizeRole(role) {
   return role === 'LANDLORD' ? 'HOST' : role;

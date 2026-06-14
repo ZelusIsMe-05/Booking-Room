@@ -1,35 +1,29 @@
-const { error } = require('../utils/responseHelper');
+const AppError = require('../utils/AppError');
+const { sendError } = require('../utils/responseHelper');
 
-class AppError extends Error {
-  constructor(message, statusCode = 500, details = undefined) {
-    super(message);
-    this.name = 'AppError';
-    this.statusCode = statusCode;
-    this.details = details;
-  }
+/**
+ * 404 handler for unmatched routes.
+ */
+function notFoundHandler(req, res) {
+  return sendError(res, { status: 404, message: 'Không tìm thấy tài nguyên.' });
 }
 
-function notFound(req, res, next) {
-  next(new AppError(`Route not found: ${req.method} ${req.originalUrl}`, 404));
-}
-
+/**
+ * Centralised error handler. Translates AppError into its declared status/code
+ * and hides internals for any unexpected error. Never exposes stack traces.
+ */
+// eslint-disable-next-line no-unused-vars
 function errorHandler(err, req, res, next) {
-  const statusCode = err.statusCode || 500;
-
-  if (statusCode >= 500) {
-    console.error(err);
+  if (err instanceof AppError) {
+    return sendError(res, { status: err.status, message: err.message, data: err.data });
   }
 
-  return error(
-    res,
-    statusCode >= 500 ? 'Internal server error' : err.message,
-    statusCode,
-    err.details,
-  );
+  // Unexpected error: log server-side, return a generic message to the client.
+  console.error('[UNHANDLED ERROR]', err);
+  return sendError(res, { status: 500, message: 'Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.' });
 }
 
 module.exports = {
-  AppError,
-  notFound,
+  notFoundHandler,
   errorHandler,
 };
