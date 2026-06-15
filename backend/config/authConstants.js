@@ -3,6 +3,11 @@
  * scattered as magic numbers / status strings across the codebase.
  */
 module.exports = {
+  USER_ROLE: {
+    ADMIN: 'ADMIN',
+    LANDLORD: 'LANDLORD',
+    TENANT: 'TENANT',
+  },
   USER_STATUS: {
     ACTIVE: 'ACTIVE',
     INACTIVE: 'INACTIVE',
