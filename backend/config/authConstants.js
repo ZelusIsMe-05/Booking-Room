@@ -8,6 +8,12 @@ module.exports = {
     INACTIVE: 'INACTIVE',
     BANNED: 'BANNED',
   },
+  // Role names — must match roles.role_name in the DB / RBAC seed.
+  ROLES: {
+    ADMIN: 'ADMIN',
+    LANDLORD: 'LANDLORD',
+    TENANT: 'TENANT',
+  },
   // Account lockout policy (FR-1.2 / UC02).
   MAX_FAILED_ATTEMPTS: 5,
   LOCK_DURATION_MINUTES: 10,
