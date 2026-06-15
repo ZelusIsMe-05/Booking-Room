@@ -1,10 +1,10 @@
 const express = require('express');
-const dashboardController = require('../../controllers/admin/dashboardController');
+const systemLogController = require('../../controllers/admin/systemLogController');
 const { requireAuth } = require('../../middlewares/authMiddleware');
 const { authorizeRoles } = require('../../middlewares/roleMiddleware');
 
 const router = express.Router();
 
-router.get('/overview', requireAuth, authorizeRoles('ADMIN'), dashboardController.getOverview);
+router.get('/', requireAuth, authorizeRoles('ADMIN'), systemLogController.listSystemLogs);
 
 module.exports = router;
