@@ -4,7 +4,7 @@ const cors = require('cors');
 const db = require('./config/db');
 
 // Auth
-const authRoutes = require('./routes/auth/authRoutes');
+const authRoutes = require('./routes/auth/auth.route');
 
 // Admin routes (thanh)
 const dashboardRoutes = require('./routes/admin/dashboardRoutes');

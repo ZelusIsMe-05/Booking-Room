@@ -13,6 +13,18 @@ module.exports = {
     INACTIVE: 'INACTIVE',
     BANNED: 'BANNED',
   },
+  // Role names — must match roles.role_name in the DB / RBAC seed.
+  ROLES: {
+    ADMIN: 'ADMIN',
+    LANDLORD: 'LANDLORD',
+    TENANT: 'TENANT',
+  },
+  // OAuth providers — must match the oauth_provider enum + oauth_accounts.provider.
+  OAUTH_PROVIDER: {
+    GOOGLE: 'GOOGLE',
+    FACEBOOK: 'FACEBOOK',
+    GITHUB: 'GITHUB',
+  },
   // Account lockout policy (FR-1.2 / UC02).
   MAX_FAILED_ATTEMPTS: 5,
   LOCK_DURATION_MINUTES: 10,

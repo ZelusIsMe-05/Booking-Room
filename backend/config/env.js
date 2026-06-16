@@ -21,6 +21,38 @@ const env = {
     refreshSecret: process.env.JWT_REFRESH_SECRET,
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
+  redis: {
+    // Dev mặc định Redis local; production set REDIS_URL trong .env.
+    url: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
+  },
+  otp: {
+    ttlSeconds: Number(process.env.OTP_TTL_SECONDS || 300),
+    maxAttempts: Number(process.env.OTP_MAX_ATTEMPTS || 3),
+    resendCooldownSeconds: Number(process.env.OTP_RESEND_COOLDOWN_SECONDS || 60),
+  },
+  smtp: {
+    // Nếu thiếu host/user/pass → mailer chạy chế độ dev (log OTP ra console).
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+    from: process.env.SMTP_FROM || 'BookingRoom <no-reply@booking.local>',
+  },
+  oauth: {
+    // Client id/secret của từng provider. Thiếu cấu hình → gọi provider đó sẽ lỗi 502.
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    },
+    facebook: {
+      clientId: process.env.FACEBOOK_CLIENT_ID,
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
+    },
+    github: {
+      clientId: process.env.GITHUB_CLIENT_ID,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET,
+    },
+  },
 };
 
 if (!Number.isInteger(env.port) || env.port <= 0) {

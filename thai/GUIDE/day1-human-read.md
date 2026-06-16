@@ -106,11 +106,44 @@ Dùng **refresh token** (KHÔNG cần đăng nhập lại):
 }
 ```
 
+## 4. Đăng xuất — thu hồi Refresh Token
+
+Đăng xuất sẽ **xóa refresh token khỏi DB**. Sau đó refresh token cũ không xin được access token mới nữa.
+
+- **Method:** `POST`
+- **URL:** `http://localhost:5000/api/auth/logout`
+- **Authorization:** Bearer Token = `accessToken` (bắt buộc, để xác định bạn là ai).
+- **Body → raw → JSON:** (refresh token của phiên cần đăng xuất)
+
+```json
+{
+  "refreshToken": "eyJhbGciOi..."
+}
+```
+
+**Kết quả (200):**
+
+```json
+{
+  "success": true,
+  "message": "Đăng xuất thành công."
+}
+```
+
+### Kiểm chứng đã đăng xuất
+
+1. Gọi lại bước **3 (refresh)** bằng refresh token vừa logout → phải nhận **401** "Refresh token không hợp lệ hoặc đã hết hạn." (vì đã bị xóa khỏi DB).
+2. Gọi lại **logout** lần nữa → vẫn **200** (idempotent — gọi nhiều lần không lỗi).
+
+> Lưu ý mô hình token: `accessToken` cũ **vẫn gọi được** API tài nguyên (vd `/me`) cho tới khi nó tự hết hạn (tối đa theo `accessExpiresIn`, mặc định 15 phút). Sau mốc đó nó không gia hạn được nữa → bị đăng xuất hoàn toàn. Đây là đánh đổi của access token ngắn hạn (không cần blacklist).
+
 ## Lỗi thường gặp
 
 | Tình huống | HTTP | message |
 | --- | --- | --- |
 | Sai/thiếu tài khoản hoặc mật khẩu | 401 | Tài khoản hoặc mật khẩu không chính xác. |
 | Sai mật khẩu > 5 lần liên tiếp | 423 | Tài khoản đang bị khóa tạm thời... (khóa 10 phút) |
-| Gọi `/me` không gắn token | 401 | Bạn cần đăng nhập để thực hiện thao tác này. |
+| Gọi `/me` hoặc `/logout` không gắn access token | 401 | Bạn cần đăng nhập để thực hiện thao tác này. |
 | Token sai / hết hạn | 401 | Phiên đăng nhập không hợp lệ hoặc đã hết hạn. |
+| Refresh bằng token đã logout | 401 | Refresh token không hợp lệ hoặc đã hết hạn. |
+| Logout/refresh thiếu `refreshToken` trong body | 400 | Thiếu refresh token. |
