@@ -29,8 +29,9 @@ async function findNotificationsByUser(userId, { limit, offset }) {
  * Insert a new notification.
  * This is an internal function not directly exposed via standard public API routes.
  */
-async function insertNotification(data) {
-  const [notification] = await db('notifications')
+async function insertNotification(data, trx) {
+  const conn = trx || db;
+  const [notification] = await conn('notifications')
     .insert(data)
     .returning('*');
   return notification;

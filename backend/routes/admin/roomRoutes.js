@@ -1,12 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { requireAuth, requireRole } = require('../../middlewares/authMiddleware'); // Đảm bảo có middleware kiểm tra role
-const roomController = require('../../controllers/admin/roomController'); // Cần tạo controller này
+const { requireAuth, authorize } = require('../../middlewares/authMiddleware');
+const roomController = require('../../controllers/admin/roomController');
 
-router.patch('/:roomId/approve', requireAuth, roomController.approveRoom);
-
-// Và tương tự với các route khác:
-router.patch('/:roomId/reject', requireAuth, roomController.rejectRoom);
-router.get('/pending', requireAuth, roomController.listPendingRooms);
+router.patch('/:roomId/approve', requireAuth, authorize('ADMIN'), roomController.approveRoom);
+router.patch('/:roomId/reject', requireAuth, authorize('ADMIN'), roomController.rejectRoom);
+router.get('/pending', requireAuth, authorize('ADMIN'), roomController.listPendingRooms);
 
 module.exports = router;

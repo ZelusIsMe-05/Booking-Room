@@ -75,7 +75,7 @@ Lưu ý: approval flow dùng `room_approvals`—`rooms.status` chỉ phản ánh
 - `backend/repositories/roomRepository.js` (implemented)
 - `backend/services/host/roomService.js` (createRoom + validations)
 - Update `backend/controllers/host/roomController.js` để gọi service
-- Upload middleware usage in `backend/routes/host/roomRoutes.js` for POST `/api/host/rooms`
+   - Upload middleware usage in `backend/routes/host/roomRoutes.js` for POST `/api/rooms`
 - Postman requests: `Host Create Room`, `Admin Approve Room`, `Public List/Detail`
 - Short day2 report files to create later: `thi/day2-AI-read.md` and `thi/day2-human-read.md` (Postman steps)
 

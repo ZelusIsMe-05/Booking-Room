@@ -69,7 +69,7 @@ async function findByRoomId(roomId, { page = 1, limit = 10 }) {
 
   const items = await db('reviews')
     .join('tenants', 'reviews.tenant_id', 'tenants.tenant_id')
-    .join('users', 'tenants.user_id', 'users.user_id')
+    .join('users', 'tenants.tenant_id', 'users.user_id')
     .where('reviews.room_id', roomId)
     .orderBy('reviews.created_at', 'desc')
     .limit(limit)

@@ -11,8 +11,8 @@ router.get('/my', requireAuth, roomController.listMyRooms);
 // Host: create a room (multipart images in field `images`)
 router.post('/', requireAuth, uploadRoomImages, roomController.createRoom);
 
-// Host: update room
-router.patch('/:roomId', requireAuth, roomController.updateRoom);
+// Host: update room (supports multipart images in field `images`)
+router.patch('/:roomId', requireAuth, uploadRoomImages, roomController.updateRoom);
 
 // Host: delete room
 router.delete('/:roomId', requireAuth, roomController.deleteRoom);

@@ -41,8 +41,10 @@ app.use('/api/notifications', notificationRoutes);   // Notifications Module
 app.use('/api/support-tickets', supportTicketRoutes); // Support Tickets Module
 app.use('/api/violation-reports', violationReportRoutes); // Violation Reports Module
 app.use('/api/ai', aiRoutes);                        // AI Recommendations Module
+// Host routes mounted first so specific host paths (eg. /my) take precedence
+app.use('/api/rooms', hostRoomRoutes);
+// Public room routes (list, detail)
 app.use('/api/rooms', guestRoomRoutes);
-app.use('/api/host/rooms', hostRoomRoutes);
 app.use('/api/admin/rooms', adminRoomRoutes);
 // 404 + centralised error handling (must be last).
 app.use(notFoundHandler);

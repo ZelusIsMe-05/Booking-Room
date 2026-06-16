@@ -9,7 +9,7 @@ Kiểm tra flow Host tạo bài đăng phòng: upload ít nhất 3 ảnh, lưu `
 - Có token của Host (`HOST_TOKEN`) và Admin (`ADMIN_TOKEN`).
 
 ## Endpoints chính
-- POST `/api/host/rooms` (multipart/form-data) — tạo phòng (field `images[]`)
+- POST `/api/rooms` (multipart/form-data) — tạo phòng (field `images[]`)
 - PATCH `/api/admin/rooms/:roomId/approve` — admin duyệt
 - GET `/api/rooms` — public list
 
@@ -17,7 +17,7 @@ Kiểm tra flow Host tạo bài đăng phòng: upload ít nhất 3 ảnh, lưu `
 Request (curl):
 
 ```bash
-curl -X POST http://localhost:3000/api/host/rooms \
+curl -X POST http://localhost:3000/api/rooms \
   -H "Authorization: Bearer $HOST_TOKEN" \
   -F "title=Phòng test" \
   -F "room_type=Phòng trọ" \
@@ -75,5 +75,3 @@ Verify the returned list contains `roomId` (room must be visible only after appr
 - Run these scenarios in order: Create → Verify pending not in public → Approve → Verify visible.
 - Clean up: xóa room bằng endpoint host delete (nếu cần) để giữ DB sạch.
 
----
-File này dùng làm hướng dẫn test nhanh cho feature "create room". Nếu bạn muốn, tôi có thể xuất thẳng Postman collection JSON.

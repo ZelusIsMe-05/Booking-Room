@@ -32,6 +32,29 @@ function requireAuth(req, res, next) {
   }
 }
 
+/**
+ * Role guard. Checks if req.user.role matches the required role(s).
+ * Must be used AFTER requireAuth.
+ * 
+ * @param {...string} allowedRoles - One or more role names (e.g., 'ADMIN', 'LANDLORD')
+ * @returns {Function} Express middleware
+ */
+function authorize(...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.user || !req.user.role) {
+      return next(new AppError('FORBIDDEN', 'Bạn không có quyền truy cập tài nguyên này.', 403));
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      return next(new AppError('FORBIDDEN', 'Bạn không có quyền truy cập tài nguyên này.', 403));
+    }
+
+    return next();
+  };
+}
+
 module.exports = {
   requireAuth,
+  authorize,
 };
+
