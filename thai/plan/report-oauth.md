@@ -88,11 +88,20 @@ Ràng buộc: `unique(provider, provider_user_id)`, `unique(user_id, provider)`,
 | GitHub cùng email | liên kết cùng user → 2 dòng `oauth_accounts` |
 | Email chưa verified | `422` (`OAUTH_EMAIL_REQUIRED`) |
 
-- ⏳ **Chưa test với provider thật** (cần đăng ký OAuth app + client id/secret + `code` thật từ trình duyệt). Logic find/link/create/issue-token đã được phủ bằng stub.
+- ✅ **E2E với provider THẬT** (Google + GitHub + Facebook) qua harness cục bộ (`backend/oauth-harness.js`, cổng 5050: bắt redirect → lấy `code` thật → `loginWithOAuth`):
+
+| Case thật | Kết quả |
+| --- | --- |
+| Google, email đã có tài khoản | liên kết vào user cũ (`isNewUser=false`) |
+| GitHub, cùng email | cùng user → 2 dòng `oauth_accounts` (GOOGLE+GITHUB) |
+| Google, email mới | tạo user mới (`isNewUser=true`), username auto |
+| Facebook, email trùng user vừa tạo | liên kết → user có GOOGLE+FACEBOOK |
+| Tất cả | trả access + refresh token chuẩn |
+
+> Cấu hình Facebook cần thêm ngoài client id/secret: quyền `email` trong Use case + `localhost` ở App Domains + Website platform (lỗi `Invalid Scopes: email` / domain nếu thiếu).
 
 ## Việc còn lại
 
-- Cấu hình `.env`: `GOOGLE_CLIENT_ID/SECRET`, `FACEBOOK_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET` + đăng ký redirect URI khớp frontend.
-- Test e2e với `code` thật từng provider.
-- Đồng bộ lại file migration `021/022/024_add_deposit...` với team để `npm run migrate` chạy lại bình thường.
+- Xóa file test tạm `backend/oauth-harness.js` khi không cần test thủ công nữa.
+- Đồng bộ lại file migration `024_add_deposit...` với team để `npm run migrate` chạy lại bình thường (021/022 đã có trong nhánh).
 - (Tương lai) Trang profile cho user đổi username; endpoint xem/huỷ liên kết provider.
