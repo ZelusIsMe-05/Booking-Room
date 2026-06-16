@@ -32,6 +32,31 @@ function requireAuth(req, res, next) {
   }
 }
 
+/**
+ * Optional authentication guard.
+ * Decodes the Bearer token if present, but does not block if missing or invalid.
+ */
+function optionalAuthenticate(req, res, next) {
+  try {
+    const header = req.headers.authorization || '';
+    const [scheme, token] = header.split(' ');
+
+    if (scheme === 'Bearer' && token) {
+      const payload = verifyAccessToken(token);
+      req.user = {
+        userId: getUserIdFromPayload(payload),
+        role: payload.role,
+        status: payload.status,
+      };
+    }
+  } catch (err) {
+    // Ignore errors for optional auth
+  }
+  return next();
+}
+
 module.exports = {
   requireAuth,
+  optionalAuthenticate,
 };
+

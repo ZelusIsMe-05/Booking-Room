@@ -6,7 +6,7 @@ function canSeeRoom(room, user) {
   if (room.status === 'AVAILABLE' && room.approval_status === 'APPROVED') return true;
   if (!user) return false;
   if (user.role === 'ADMIN') return true;
-  return user.role === 'HOST' && room.landlord_id === user.user_id;
+  return user.role === 'LANDLORD' && room.landlord_id === user.userId;
 }
 
 async function listRooms(query) {

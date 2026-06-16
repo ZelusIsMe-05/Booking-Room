@@ -127,28 +127,28 @@ async function assertOwnRoom(roomId, userId) {
 }
 
 async function createRoom(user, payload) {
-  await assertVerifiedHost(user.user_id);
+  await assertVerifiedHost(user.userId);
   const roomPayload = validateCreatePayload(payload);
   const roomId = await Room.createRoom({
     ...roomPayload,
-    landlord_id: user.user_id,
+    landlord_id: user.userId,
   });
   return Room.findRoomById(roomId);
 }
 
 async function listMyRooms(user) {
-  return Room.listRoomsByLandlord(user.user_id);
+  return Room.listRoomsByLandlord(user.userId);
 }
 
 async function updateRoom(user, roomId, payload) {
-  await assertOwnRoom(roomId, user.user_id);
+  await assertOwnRoom(roomId, user.userId);
   const changes = validateUpdatePayload(payload);
   await Room.updateRoom(roomId, changes);
   return Room.findRoomById(roomId);
 }
 
 async function deleteRoom(user, roomId) {
-  await assertOwnRoom(roomId, user.user_id);
+  await assertOwnRoom(roomId, user.userId);
   await Room.deleteRoom(roomId);
   return null;
 }

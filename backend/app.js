@@ -11,6 +11,15 @@ const dashboardRoutes = require('./routes/admin/dashboardRoutes');
 const systemLogRoutes = require('./routes/admin/systemLogRoutes');
 const userRoutes = require('./routes/admin/userRoutes');
 
+// Host routes
+const hostRoomRoutes = require('./routes/host/roomRoutes');
+const hostBookingRoutes = require('./routes/host/bookingRoutes');
+
+// Booking / Payment routes (thinh)
+const depositRoutes = require('./routes/booking/depositRoutes');
+const paymentRoutes = require('./routes/payment/transactionRoutes');
+const adminBookingRoutes = require('./routes/admin/bookingRoutes');
+
 // Guest routes (vinh)
 const reviewRoutes = require('./routes/guest/reviewRoutes');
 const favoriteRoutes = require('./routes/guest/favoriteRoutes');
@@ -19,6 +28,7 @@ const notificationRoutes = require('./routes/guest/notificationRoutes');
 const supportTicketRoutes = require('./routes/guest/supportTicketRoutes');
 const violationReportRoutes = require('./routes/guest/violationReportRoutes');
 const aiRoutes = require('./routes/guest/aiRoutes');
+const guestRoomRoutes = require('./routes/guest/roomRoutes');
 
 const { notFoundHandler, errorHandler } = require('./middlewares/errorHandler');
 const requestLogger = require('./middlewares/requestLogger');
@@ -55,6 +65,16 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/admin/system-logs', systemLogRoutes);
 app.use('/api/admin/users', userRoutes);
+app.use('/api/admin/rooms', require('./routes/admin/roomRoutes'));
+app.use('/api/admin', adminBookingRoutes);           // /api/admin/transactions, /api/admin/bookings/expire-deposits
+
+// Host routes
+app.use('/api/host/rooms', hostRoomRoutes);
+app.use('/api/host/bookings/deposits', hostBookingRoutes);
+
+// Booking / Payment routes (thinh)
+app.use('/api/bookings/deposits', depositRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Guest routes
 app.use('/api/rooms/:roomId/reviews', reviewRoutes); // GET reviews for a room (public)
@@ -65,6 +85,7 @@ app.use('/api/notifications', notificationRoutes);   // Notifications Module
 app.use('/api/support-tickets', supportTicketRoutes); // Support Tickets Module
 app.use('/api/violation-reports', violationReportRoutes); // Violation Reports Module
 app.use('/api/ai', aiRoutes);                        // AI Recommendations Module
+app.use('/api/rooms', guestRoomRoutes);
 
 // 404 + centralised error handling (must be last).
 app.use(notFoundHandler);
