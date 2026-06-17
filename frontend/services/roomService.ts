@@ -1,5 +1,3 @@
-'use client';
-
 import { apiClient } from './apiClient';
 import { ApiResponse } from '@/types/api';
 import { BookingRoom } from '@/data/bookingRooms';
@@ -43,26 +41,76 @@ export interface ListRoomsResponse {
   };
 }
 
-export function mapBackendRoomToBookingRoom(room: BackendRoom): BookingRoom {
-  const district = room.detailed_address?.match(/(Quận \d+|Bình Thạnh|Gò Vấp|Thủ Đức|Tân Bình|Phú Nhuận|Quận [1-9]|Quận 1[0-2]|Tân Phú|Bình Tân)/i)?.[0] || 'Khác';
-  const price = Number(room.monthly_rent);
+export function mapBackendRoomToBookingRoom(room: any, index?: number): BookingRoom {
+  // Extract roomId
+  const roomId = room.roomId || room.room_id || '';
+  
+  // Extract title
+  const title = room.title || '';
+  
+  // Extract detailed address
+  const detailedAddress = room.detailedAddress || room.addressSummary || room.detailed_address || '';
+  
+  // Extract district from address
+  const district = detailedAddress?.match(/(Quận \d+|Bình Thạnh|Gò Vấp|Thủ Đức|Tân Bình|Phú Nhuận|Quận [1-9]|Quận 1[0-2]|Tân Phú|Bình Tân)/i)?.[0] || 'Khác';
+  
+  // Extract price & deposit
+  const price = Number(room.monthlyRent !== undefined ? room.monthlyRent : room.monthly_rent) || 0;
+  const deposit = Number(room.depositAmount !== undefined ? room.depositAmount : room.deposit_amount) || 0;
+  
+  // Extract room type
+  const roomType = room.roomType || room.room_type || 'Phòng trọ';
+  
+  // Extract average rating
+  const averageRating = room.averageRating !== undefined ? room.averageRating : room.average_rating;
+  
+  // Extract created_at
+  const createdAt = room.createdAt || room.created_at || new Date().toISOString();
+
+  // Assign local mockup images (room-1.png, room-2.png, room-3.png, room-4.png) stably
+  let imgIndex = 1;
+  if (index !== undefined) {
+    imgIndex = (index % 4) + 1;
+  } else {
+    // Generate a stable hash of the roomId string to get a consistent image index between 1 and 4
+    let hash = 0;
+    const idStr = String(roomId);
+    for (let i = 0; i < idStr.length; i++) {
+      hash = idStr.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    imgIndex = (Math.abs(hash) % 4) + 1;
+  }
+  const mainImage = `/images/booking/room-${imgIndex}.png`;
+
   return {
-    id: room.room_id,
-    title: room.title,
-    location: room.detailed_address,
+    id: String(roomId),
+    title,
+    location: detailedAddress,
     district,
     price,
     priceLabel: new Intl.NumberFormat('vi-VN').format(price) + 'đ',
-    image: room.cover_image_url || '/images/booking/room-1.png',
-    verified: room.approval_status === 'APPROVED',
-    isNew: new Date().getTime() - new Date(room.created_at).getTime() < 7 * 24 * 60 * 60 * 1000,
-    type: room.room_type || 'Phòng trọ',
-    area: `${(room.max_capacity || 2) * 8 + 4} m²`,
-    rating: room.average_rating || 0,
-    reviews: 0,
-    amenities: ['Wifi', 'Điều hòa', 'Bếp riêng', 'Chỗ để xe'],
-    description: room.room_description || '',
-  };
+    image: mainImage,
+    verified: true, // Seeded approved rooms are verified
+    isNew: new Date().getTime() - new Date(createdAt).getTime() < 30 * 24 * 60 * 60 * 1000,
+    type: roomType,
+    area: `${(room.maxCapacity || room.max_capacity || 2) * 8 + 4} m²`,
+    rating: averageRating || 4.8,
+    reviews: 24, // Mock default review count
+    amenities: room.amenities || [],
+    description: room.roomDescription || room.room_description || '',
+    electricityCost: Number(room.electricityCost !== undefined ? room.electricityCost : room.electricity_cost) || 0,
+    waterCost: Number(room.waterCost !== undefined ? room.waterCost : room.water_cost) || 0,
+    internetCost: Number(room.internetCost !== undefined ? room.internetCost : room.internet_cost) || 0,
+    serviceFee: Number(room.serviceFee !== undefined ? room.serviceFee : room.service_fee) || 0,
+    deposit: Number(room.depositAmount !== undefined ? room.depositAmount : room.deposit_amount) || 0,
+    host: room.host ? {
+      fullName: room.host.fullName || room.host.full_name || 'Nguyễn Văn A',
+      avatarUrl: room.host.avatarUrl || room.host.avatar_url || null,
+      email: room.host.email,
+      phoneNumber: room.host.phoneNumber || room.host.phone_number,
+      createdAt: room.host.createdAt || room.host.created_at || null,
+    } : undefined
+  } as any;
 }
 
 export const roomService = {
@@ -71,18 +119,26 @@ export const roomService = {
     limit?: number;
     sort?: string;
     keyword?: string;
+    location?: string;
+    roomType?: string;
+    minPrice?: number;
+    maxPrice?: number;
   }): Promise<ApiResponse<ListRoomsResponse>> => {
     const query = new URLSearchParams();
     if (params.page) query.append('page', String(params.page));
     if (params.limit) query.append('limit', String(params.limit));
     if (params.sort) query.append('sort', String(params.sort));
     if (params.keyword) query.append('keyword', params.keyword);
+    if (params.location) query.append('location', params.location);
+    if (params.roomType) query.append('roomType', params.roomType);
+    if (params.minPrice !== undefined) query.append('minPrice', String(params.minPrice));
+    if (params.maxPrice !== undefined) query.append('maxPrice', String(params.maxPrice));
 
     const queryString = query.toString() ? `?${query.toString()}` : '';
     return apiClient.get<ApiResponse<ListRoomsResponse>>(`/rooms${queryString}`);
   },
 
-  getRoomById: async (id: string): Promise<ApiResponse<{ room: BackendRoom }>> => {
-    return apiClient.get<ApiResponse<{ room: BackendRoom }>>(`/rooms/${id}`);
+  getRoomById: async (id: string): Promise<ApiResponse<BackendRoom>> => {
+    return apiClient.get<ApiResponse<BackendRoom>>(`/rooms/${id}`);
   },
 };

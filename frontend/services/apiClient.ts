@@ -1,4 +1,16 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
+
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+const subscribeTokenRefresh = (cb: (token: string) => void) => {
+  refreshSubscribers.push(cb);
+};
+
+const onRefreshed = (token: string) => {
+  refreshSubscribers.forEach((cb) => cb(token));
+  refreshSubscribers = [];
+};
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
@@ -22,7 +34,64 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers,
   };
 
-  const response = await fetch(url, config);
+  let response = await fetch(url, config);
+
+  // Auto-refresh token if response is 401 Unauthorized
+  if (
+    response.status === 401 &&
+    endpoint !== '/auth/refresh' &&
+    endpoint !== '/auth/login' &&
+    typeof window !== 'undefined'
+  ) {
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (refreshToken) {
+      if (!isRefreshing) {
+        isRefreshing = true;
+        try {
+          console.log('Centralized API client: Access token expired. Attempting to refresh...');
+          const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken }),
+          });
+
+          if (refreshRes.ok) {
+            const refreshBody = await refreshRes.json();
+            const newAccessToken = refreshBody?.data?.accessToken;
+            if (newAccessToken) {
+              localStorage.setItem('accessToken', newAccessToken);
+              console.log('Centralized API client: Token refreshed successfully.');
+              onRefreshed(newAccessToken);
+              isRefreshing = false;
+            } else {
+              throw new Error('Refresh token response missing access token');
+            }
+          } else {
+            throw new Error('Refresh token request failed');
+          }
+        } catch (refreshErr) {
+          console.error('Centralized API client: Token refresh failed.', refreshErr);
+          isRefreshing = false;
+          // Clear credentials and force redirect to login
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          window.location.href = '/login';
+          throw refreshErr;
+        }
+      }
+
+      // Return a Promise that resolves when the token refresh is complete
+      const retryOriginalRequest = new Promise((resolve) => {
+        subscribeTokenRefresh((token: string) => {
+          headers.set('Authorization', `Bearer ${token}`);
+          resolve(fetch(url, { ...options, headers }));
+        });
+      });
+
+      // Await the retried response
+      response = (await retryOriginalRequest) as Response;
+    }
+  }
 
   // Parse JSON response if available
   let data: any;
@@ -62,4 +131,11 @@ export const apiClient = {
     
   delete: <T>(endpoint: string, options?: RequestInit) => 
     request<T>(endpoint, { ...options, method: 'DELETE' }),
+    
+  patch: <T>(endpoint: string, body?: any, options?: RequestInit) => 
+    request<T>(endpoint, { 
+      ...options, 
+      method: 'PATCH', 
+      body: body ? JSON.stringify(body) : undefined 
+    }),
 };

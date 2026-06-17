@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { BookingRoom } from '@/data/bookingRooms';
-import { CheckIcon, HeartIcon, MapPinIcon } from './Icons';
+import { CheckIcon, HeartIcon, MapPinIcon, StarIcon } from './Icons';
 
 type RoomCardProps = {
   room: BookingRoom;
@@ -52,10 +52,17 @@ export default function RoomCard({ room, featured = false }: RoomCardProps) {
           <h3 className={`${featured ? 'text-lg sm:text-xl' : 'text-base'} truncate font-bold drop-shadow`}>
             {room.title}
           </h3>
-          <p className="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-booking-surface/85">
-            <MapPinIcon className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{room.location}</span>
-          </p>
+          <div className="mt-1 flex items-center gap-1.5 text-xs text-booking-surface/85">
+            <span className="flex items-center gap-0.5 font-bold text-yellow-400 drop-shadow">
+              <StarIcon className="h-3.5 w-3.5 fill-current" />
+              {room.rating || 4.8}
+            </span>
+            <span className="text-white/40 drop-shadow">•</span>
+            <span className="flex items-center gap-1 min-w-0 drop-shadow">
+              <MapPinIcon className="h-3.5 w-3.5 shrink-0 text-white/90" />
+              <span className="truncate">{room.location}</span>
+            </span>
+          </div>
         </div>
         <p className="shrink-0 text-right font-bold drop-shadow">
           <span className={featured ? 'text-xl' : 'text-lg'}>{room.priceLabel}</span>

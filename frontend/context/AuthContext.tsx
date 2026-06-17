@@ -27,9 +27,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setUser(null);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch user profile:', error);
-      // If unauthorized or error, clear tokens
+      // If error (meaning refresh token is also expired or invalid), clean credentials
       logout();
     }
   };
@@ -89,8 +89,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Catch any error from the background API call so it never bubbles up or breaks the client
     try {
       await apiCall;
-    } catch (error) {
-      console.error('Failed to revoke tokens on backend during logout:', error);
+    } catch (error: any) {
+      const isUnauthorized = error?.response?.status === 401 || error?.status === 401;
+      if (!isUnauthorized) {
+        console.error('Failed to revoke tokens on backend during logout:', error);
+      }
     }
   };
 

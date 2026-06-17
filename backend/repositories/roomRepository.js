@@ -37,9 +37,11 @@ async function findPublicById(roomId, trx) {
       'u.username as landlord_username',
       'u.avatar_url as landlord_avatar_url',
       'u.email as landlord_email',
-      'u.phone_number as landlord_phone_number'
+      'u.phone_number as landlord_phone_number',
+      'sec.created_at as landlord_created_at'
     )
-    .join('users as u', 'u.user_id', 'r.landlord_id')
+    .leftJoin('users as u', 'u.user_id', 'r.landlord_id')
+    .leftJoin('account_security as sec', 'sec.user_id', 'u.user_id')
     .where('r.room_id', roomId)
     .where('r.status', 'AVAILABLE')
     .whereExists(function () {

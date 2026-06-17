@@ -99,10 +99,12 @@ async function getRoomById(roomId, user = null) {
         'u.username as landlord_username',
         'u.avatar_url as landlord_avatar_url',
         'u.email as landlord_email',
-        'u.phone_number as landlord_phone_number'
+        'u.phone_number as landlord_phone_number',
+        'sec.created_at as landlord_created_at'
       )
       .leftJoin('room_approvals as ra', 'r.room_id', 'ra.room_id')
-      .join('users as u', 'u.user_id', 'r.landlord_id')
+      .leftJoin('users as u', 'u.user_id', 'r.landlord_id')
+      .leftJoin('account_security as sec', 'sec.user_id', 'u.user_id')
       .where('r.room_id', roomId)
       .first();
 
@@ -157,9 +159,35 @@ async function getRoomById(roomId, user = null) {
       avatarUrl: room.landlord_avatar_url,
       email: room.landlord_email,
       phoneNumber: room.landlord_phone_number,
+      createdAt: room.landlord_created_at,
     },
     reviews,
-    amenities: [],
+    amenities: (() => {
+      if (!room.room_description) {
+        return [];
+      }
+      const desc = room.room_description.toLowerCase();
+      const list = [];
+      if (desc.includes('máy lạnh') || desc.includes('điều hòa')) {
+        list.push('Máy lạnh');
+      }
+      if (desc.includes('wifi') || desc.includes('internet')) {
+        list.push('Wifi tốc độ cao');
+      }
+      if (desc.includes('tự do')) {
+        list.push('Giờ giấc tự do');
+      }
+      if (desc.includes('máy giặt')) {
+        list.push('Máy giặt chung');
+      }
+      if (desc.includes('tủ lạnh')) {
+        list.push('Tủ lạnh');
+      }
+      if (desc.includes('để xe') || desc.includes('đỗ xe') || desc.includes('bãi xe') || desc.includes('gửi xe') || desc.includes('bãi đậu')) {
+        list.push('Bãi đậu xe máy');
+      }
+      return list;
+    })(),
   };
 }
 

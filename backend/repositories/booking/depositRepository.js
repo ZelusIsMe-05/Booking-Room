@@ -166,6 +166,11 @@ async function cancelDeposit(depositId, roomId, reason) {
 
     await _setRoomStatus(trx, roomId, 'AVAILABLE');
 
+    // Cập nhật tất cả transaction PENDING liên quan đến deposit này thành FAILED
+    await trx('transactions')
+      .where({ deposit_id: depositId, status: 'PENDING' })
+      .update({ status: 'FAILED' });
+
     return deposit;
   });
 }
@@ -276,6 +281,12 @@ async function expireDeposits(deposits) {
     await trx('rooms')
       .whereIn('room_id', roomIds)
       .update({ status: 'AVAILABLE', updated_at: trx.fn.now() });
+
+    // Cập nhật các giao dịch PENDING của các đơn cọc hết hạn thành FAILED
+    await trx('transactions')
+      .whereIn('deposit_id', depositIds)
+      .where({ status: 'PENDING' })
+      .update({ status: 'FAILED' });
 
     return expired;
   });

@@ -2,15 +2,36 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import BookingChatFab from '@/components/booking/BookingChatFab';
 import BookingFooter from '@/components/booking/BookingFooter';
 import BookingHeader from '@/components/booking/BookingHeader';
 import RoomCard from '@/components/booking/RoomCard';
 import SearchBento from '@/components/booking/SearchBento';
-import { bookingRooms } from '@/data/bookingRooms';
+import { roomService, mapBackendRoomToBookingRoom } from '@/services/roomService';
+import type { BookingRoom } from '@/data/bookingRooms';
 
 export default function GuestDashboard() {
-  const displayRooms = bookingRooms.slice(0, 4);
+  const [rooms, setRooms] = useState<BookingRoom[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadFeaturedRooms() {
+      try {
+        const res = await roomService.listRooms({ limit: 4, sort: 'rating_desc' });
+        if (res && res.data) {
+          const items = res.data.items || [];
+          const mapped = items.map((room, idx) => mapBackendRoomToBookingRoom(room));
+          setRooms(mapped);
+        }
+      } catch (err) {
+        console.error('Error loading featured rooms:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadFeaturedRooms();
+  }, []);
 
   return (
     <div className="min-h-screen bg-booking-surface text-booking-text">
@@ -52,11 +73,29 @@ export default function GuestDashboard() {
             </Link>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            {displayRooms.map((room, index) => (
-              <RoomCard key={room.id} room={room} featured={index === 0 || index === 3} />
-            ))}
-          </div>
+          {loading ? (
+            <div className="grid gap-6 md:grid-cols-2">
+              {[1, 2].map((n) => (
+                <div key={n} className="animate-pulse rounded-2xl border border-booking-border bg-white overflow-hidden shadow-sm h-[320px]">
+                  <div className="bg-slate-200 h-48 w-full" />
+                  <div className="p-4 space-y-3">
+                    <div className="h-4 bg-slate-200 rounded w-3/4" />
+                    <div className="h-4 bg-slate-200 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : rooms.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-booking-border bg-white p-12 text-center text-booking-muted font-medium">
+              Chưa có phòng nổi bật nào trong hệ thống.
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2">
+              {rooms.map((room, index) => (
+                <RoomCard key={room.id} room={room} featured={index === 0 || index === 3} />
+              ))}
+            </div>
+          )}
         </section>
       </main>
 

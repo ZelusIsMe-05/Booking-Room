@@ -14,6 +14,7 @@ This directory is reorganized for AI-assisted implementation. The files below ar
 8. [07 Class Specifications](07-class-specifications.md)
 9. [08 UI Specifications](08-ui-specifications.md)
 10. [09 User Flows](09-user-flows.md)
+11. [AWS S3 Integration Guide](aws-s3-integration.md)
 
 ## Traceability Sources
 
