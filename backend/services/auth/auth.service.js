@@ -4,6 +4,7 @@ const authRepository = require('../../repositories/auth/auth.repository');
 const AppError = require('../../utils/AppError');
 const { comparePassword, hashPassword } = require('../../utils/hashPassword');
 const otpStore = require('../../redis/otpStore');
+const idCardStorage = require('../storage/idCardStorage');
 const oauthProviders = require('./oauthProviders');
 const { sendOtpEmail } = require('../../utils/mailer');
 const { toRegisterResponse } = require('../../models/User');
@@ -134,6 +135,81 @@ async function register({ fullName, username, email, phoneNumber, password, gend
   const code = otpStore.generateOtp();
   await otpStore.setOtp({ purpose: otpStore.OTP_PURPOSE.REGISTRATION, identifier: email, code });
   await sendOtpEmail({ to: email, code, purpose: otpStore.OTP_PURPOSE.REGISTRATION });
+
+  return {
+    user: toRegisterResponse(user),
+    otpExpiresInSeconds: env.otp.ttlSeconds,
+  };
+}
+
+/**
+ * Đăng ký tài khoản LANDLORD mới (status INACTIVE, approval PENDING) kèm ảnh CCCD.
+ * Khác register thường: sinh user_id ở app để biết thư mục ảnh, ghi ảnh ra storage
+ * TRƯỚC transaction DB; nếu tạo DB lỗi thì xóa ảnh vừa ghi để tránh rác. Landlord
+ * sau khi verify OTP vẫn PENDING cho tới khi Admin duyệt.
+ *
+ * @param {{ fullName, username, email, phoneNumber, password, gender, dateOfBirth,
+ *   idCardFront: { buffer: Buffer }, idCardBack: { buffer: Buffer } }} input
+ * @returns {Promise<{ user: object, otpExpiresInSeconds: number }>}
+ */
+async function registerLandlord({ fullName, username, email, phoneNumber, password, gender, dateOfBirth, idCardFront, idCardBack }) {
+  // 1. Chặn trùng email / phone / username.
+  const existing = await authRepository.findUserByEmailPhoneUsername({ email, phoneNumber, username });
+  if (existing) {
+    throw new AppError(
+      'DUPLICATE_ACCOUNT',
+      'Email, số điện thoại hoặc tên đăng nhập đã được sử dụng.',
+      409,
+    );
+  }
+
+  // 2. Lấy role LANDLORD.
+  const role = await authRepository.getRoleIdByName(ROLES.LANDLORD);
+  if (!role) {
+    throw new AppError('ROLE_NOT_FOUND', 'Vai trò LANDLORD chưa được cấu hình.', 500);
+  }
+
+  // 3. Hash mật khẩu + sinh user_id ở app (để biết thư mục ảnh trước khi ghi file).
+  const passwordHash = await hashPassword(password);
+  const landlordId = crypto.randomUUID();
+
+  // 4. Ghi 2 ảnh CCCD ra storage TRƯỚC transaction DB.
+  const { frontKey, backKey } = await idCardStorage.save({
+    landlordId,
+    frontFile: idCardFront,
+    backFile: idCardBack,
+  });
+
+  // 5. Tạo user/landlord/account_security trong transaction; rollback file nếu lỗi.
+  let user;
+  try {
+    user = await authRepository.createUserWithRole({
+      userId: landlordId,
+      fullName,
+      username,
+      email,
+      phoneNumber,
+      passwordHash,
+      roleId: role.role_id,
+      roleName: ROLES.LANDLORD,
+      gender,
+      dateOfBirth,
+      idCardFrontUrl: frontKey,
+      idCardBackUrl: backKey,
+    });
+  } catch (err) {
+    await idCardStorage.remove(landlordId).catch(() => {});
+    throw err;
+  }
+
+  // 6. Sau commit: sinh OTP, lưu Redis, gửi email (như đăng ký thường).
+  const code = otpStore.generateOtp();
+  await otpStore.setOtp({ purpose: otpStore.OTP_PURPOSE.REGISTRATION, identifier: email, code });
+  await sendOtpEmail({ to: email, code, purpose: otpStore.OTP_PURPOSE.REGISTRATION });
+
+  // Bổ sung role + approval_status để response phản ánh đúng (repo không trả 2 field này).
+  user.role_name = ROLES.LANDLORD;
+  user.approval_status = 'PENDING';
 
   return {
     user: toRegisterResponse(user),
@@ -469,6 +545,8 @@ async function getCurrentUser(userId) {
   return {
     ...toPublicUser(user),
     avatarUrl: user.avatar_url || null,
+    // Chỉ landlord có approval_status (leftJoin → null cho vai trò khác).
+    ...(user.approval_status ? { approvalStatus: user.approval_status } : {}),
   };
 }
 
@@ -678,6 +756,7 @@ async function changePassword(userId, { currentPassword, newPassword }) {
 
 module.exports = {
   register,
+  registerLandlord,
   verifyOtp,
   resendOtp,
   forgotPassword,

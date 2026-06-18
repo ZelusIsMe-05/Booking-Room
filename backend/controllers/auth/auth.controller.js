@@ -16,11 +16,38 @@ function getClientIp(req) {
 
 /**
  * POST /api/auth/register
- * Tạo tài khoản TENANT (INACTIVE) và gửi OTP qua email.
+ * Một endpoint cho cả 2 vai trò; `role` (đã validate theo schema tương ứng) quyết
+ * định nhánh xử lý. LANDLORD cần kèm 2 ảnh CCCD (multipart) + sẽ chờ Admin duyệt.
  */
 async function register(req, res, next) {
   try {
     const { fullName, username, email, phoneNumber, password, gender, dateOfBirth, role } = req.body;
+
+    if (role === 'LANDLORD') {
+      const front = req.files?.id_card_front?.[0];
+      const back = req.files?.id_card_back?.[0];
+      if (!front || !back) {
+        throw new AppError('ID_CARD_REQUIRED', 'Vui lòng tải lên ảnh mặt trước và mặt sau CCCD.', 400);
+      }
+
+      const { user, otpExpiresInSeconds } = await authService.registerLandlord({
+        fullName,
+        username,
+        email,
+        phoneNumber,
+        password,
+        gender,
+        dateOfBirth,
+        idCardFront: front,
+        idCardBack: back,
+      });
+
+      return sendSuccess(res, {
+        status: 201,
+        message: 'Đăng ký chủ nhà thành công. Vui lòng kiểm tra email để nhận mã OTP; hồ sơ sẽ được Admin duyệt.',
+        data: { ...user, otpExpiresInSeconds },
+      });
+    }
 
     const { user, otpExpiresInSeconds } = await authService.register({
       fullName,
@@ -30,7 +57,7 @@ async function register(req, res, next) {
       password,
       gender,
       dateOfBirth,
-      role,
+      role: 'TENANT',
     });
 
     return sendSuccess(res, {

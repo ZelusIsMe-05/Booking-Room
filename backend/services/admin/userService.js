@@ -280,6 +280,163 @@ async function resetUserPassword({ userId, temporaryPassword, actor }) {
   return toPublicUser(updated);
 }
 
+// ---- Landlord approval ----
+
+const LANDLORD_APPROVAL_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'];
+
+function toLandlordDetail(row) {
+  return {
+    userId: row.user_id,
+    fullName: row.full_name,
+    email: row.email,
+    phoneNumber: row.phone_number,
+    username: row.username,
+    status: row.status,
+    role: row.role_name,
+    approvalStatus: row.approval_status,
+    rejectionReason: row.rejection_reason || null,
+    reviewedAt: row.reviewed_at || null,
+    reviewedBy: row.reviewed_by || null,
+    idCardFrontUrl: row.id_card_front_url || null,
+    idCardBackUrl: row.id_card_back_url || null,
+  };
+}
+
+function baseLandlordQuery() {
+  return db('landlords')
+    .join('users', 'landlords.landlord_id', 'users.user_id')
+    .join('roles', 'users.role_id', 'roles.role_id');
+}
+
+function selectLandlordFields(query) {
+  return query.select(
+    'users.user_id',
+    'users.full_name',
+    'users.email',
+    'users.phone_number',
+    'users.username',
+    'users.status',
+    'roles.role_name',
+    'landlords.approval_status',
+    'landlords.rejection_reason',
+    'landlords.reviewed_at',
+    'landlords.reviewed_by',
+    'landlords.id_card_front_url',
+    'landlords.id_card_back_url',
+  );
+}
+
+async function getExistingLandlord(userId) {
+  const row = await selectLandlordFields(baseLandlordQuery())
+    .where('landlords.landlord_id', userId)
+    .first();
+
+  if (!row) {
+    throw new AppError('LANDLORD_NOT_FOUND', 'Khong tim thay ho so chu nha.', 404);
+  }
+
+  return row;
+}
+
+async function listLandlords(filters = {}) {
+  if (filters.status && !LANDLORD_APPROVAL_STATUSES.includes(String(filters.status).trim().toUpperCase())) {
+    throw new AppError('INVALID_STATUS', 'Trang thai duyet khong hop le.', 400);
+  }
+
+  const page = parsePositiveInteger(filters.page, DEFAULT_PAGE);
+  const limit = Math.min(parsePositiveInteger(filters.limit, DEFAULT_LIMIT), MAX_LIMIT);
+  const offset = (page - 1) * limit;
+  const baseQuery = baseLandlordQuery();
+
+  if (filters.status) {
+    baseQuery.where('landlords.approval_status', String(filters.status).trim().toUpperCase());
+  }
+
+  const countQuery = baseQuery.clone().clearSelect().clearOrder().countDistinct({ total: 'landlords.landlord_id' }).first();
+  const rowsQuery = selectLandlordFields(baseQuery.clone())
+    .orderBy('users.full_name', 'asc')
+    .limit(limit)
+    .offset(offset);
+
+  const [countRow, rows] = await Promise.all([countQuery, rowsQuery]);
+  const total = Number(countRow ? countRow.total : 0);
+
+  return {
+    items: rows.map(toLandlordDetail),
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+}
+
+async function getLandlordDetail(userId) {
+  const row = await getExistingLandlord(userId);
+  return toLandlordDetail(row);
+}
+
+async function approveLandlord({ userId, actor }) {
+  await getExistingLandlord(userId);
+
+  await db('landlords')
+    .where({ landlord_id: userId })
+    .update({
+      approval_status: 'APPROVED',
+      rejection_reason: null,
+      reviewed_at: db.fn.now(),
+      reviewed_by: actor.userId,
+    });
+
+  await logAdminAction(actor, `ADMIN_APPROVE_LANDLORD target=${userId}`);
+
+  return toLandlordDetail(await getExistingLandlord(userId));
+}
+
+async function rejectLandlord({ userId, reason, actor }) {
+  await getExistingLandlord(userId);
+
+  const trimmedReason = String(reason || '').trim();
+  if (!trimmedReason) {
+    throw new AppError('REJECTION_REASON_REQUIRED', 'Vui long nhap ly do tu choi.', 400);
+  }
+
+  await db('landlords')
+    .where({ landlord_id: userId })
+    .update({
+      approval_status: 'REJECTED',
+      rejection_reason: trimmedReason,
+      reviewed_at: db.fn.now(),
+      reviewed_by: actor.userId,
+    });
+
+  await logAdminAction(actor, `ADMIN_REJECT_LANDLORD target=${userId} reason=${trimmedReason}`);
+
+  return toLandlordDetail(await getExistingLandlord(userId));
+}
+
+/**
+ * Lay key anh CCCD de stream (chi Admin). side = 'front' | 'back'.
+ *
+ * @param {string} userId
+ * @param {string} side
+ * @returns {Promise<string>} storage key
+ */
+async function getLandlordIdCardKey(userId, side) {
+  const normalized = String(side || '').toLowerCase();
+  if (normalized !== 'front' && normalized !== 'back') {
+    throw new AppError('INVALID_ID_CARD_SIDE', 'side chi nhan front hoac back.', 400);
+  }
+
+  const row = await getExistingLandlord(userId);
+  const key = normalized === 'front' ? row.id_card_front_url : row.id_card_back_url;
+  if (!key) {
+    throw new AppError('ID_CARD_NOT_FOUND', 'Khong tim thay anh CCCD.', 404);
+  }
+  return key;
+}
+
 module.exports = {
   listUsers,
   getUserDetail,
@@ -287,4 +444,9 @@ module.exports = {
   unlockUser,
   updateUserRole,
   resetUserPassword,
+  listLandlords,
+  getLandlordDetail,
+  approveLandlord,
+  rejectLandlord,
+  getLandlordIdCardKey,
 };

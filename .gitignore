@@ -47,3 +47,6 @@ Thumbs.db
 backend/node_modules/
 backend/dist/
 backend/build/
+
+# Ảnh CCCD landlord (dữ liệu nhạy cảm) — không đưa vào git, sẽ chuyển sang S3
+backend/uploads/landlords/

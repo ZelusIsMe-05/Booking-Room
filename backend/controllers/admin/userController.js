@@ -1,4 +1,6 @@
 const userService = require('../../services/admin/userService');
+const idCardStorage = require('../../services/storage/idCardStorage');
+const AppError = require('../../utils/AppError');
 const { sendSuccess } = require('../../utils/responseHelper');
 
 function getClientIp(req) {
@@ -116,6 +118,84 @@ async function resetUserPassword(req, res, next) {
   }
 }
 
+async function listLandlords(req, res, next) {
+  try {
+    const result = await userService.listLandlords(req.query || {});
+
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Lay danh sach chu nha thanh cong.',
+      data: result,
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function getLandlordDetail(req, res, next) {
+  try {
+    const landlord = await userService.getLandlordDetail(req.params.id);
+
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Lay chi tiet chu nha thanh cong.',
+      data: { landlord },
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function approveLandlord(req, res, next) {
+  try {
+    const landlord = await userService.approveLandlord({
+      userId: req.params.id,
+      actor: getActor(req),
+    });
+
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Duyet ho so chu nha thanh cong.',
+      data: { landlord },
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function rejectLandlord(req, res, next) {
+  try {
+    const landlord = await userService.rejectLandlord({
+      userId: req.params.id,
+      reason: req.body ? req.body.reason : undefined,
+      actor: getActor(req),
+    });
+
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Tu choi ho so chu nha thanh cong.',
+      data: { landlord },
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * Stream ảnh CCCD của landlord (chỉ Admin). Thay cho serve tĩnh public.
+ */
+async function getLandlordIdCard(req, res, next) {
+  try {
+    const key = await userService.getLandlordIdCardKey(req.params.id, req.params.side);
+    const stream = idCardStorage.getStream(key);
+    stream.on('error', () => next(new AppError('ID_CARD_NOT_FOUND', 'Khong doc duoc anh CCCD.', 404)));
+    res.type('image/jpeg');
+    return stream.pipe(res);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   listUsers,
   getUserDetail,
@@ -123,4 +203,9 @@ module.exports = {
   unlockUser,
   updateUserRole,
   resetUserPassword,
+  listLandlords,
+  getLandlordDetail,
+  approveLandlord,
+  rejectLandlord,
+  getLandlordIdCard,
 };

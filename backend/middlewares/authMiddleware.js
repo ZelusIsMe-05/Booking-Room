@@ -1,5 +1,6 @@
 const { verifyAccessToken, getUserIdFromPayload } = require('../utils/jwt');
 const AppError = require('../utils/AppError');
+const authRepository = require('../repositories/auth/auth.repository');
 
 /**
  * Authentication guard. Verifies the Bearer access token and exposes the
@@ -76,9 +77,46 @@ function authorize(...allowedRoles) {
   };
 }
 
+/**
+ * Chặn landlord chưa được Admin duyệt thực hiện thao tác chủ nhà.
+ * Phải dùng SAU requireAuth (+ thường sau authorize('LANDLORD')).
+ * APPROVED → cho qua; PENDING/REJECTED → 403 kèm trạng thái + lý do (nếu có).
+ *
+ * @type {import('express').RequestHandler}
+ */
+async function requireApprovedLandlord(req, res, next) {
+  try {
+    if (!req.user || !req.user.userId) {
+      return next(new AppError('UNAUTHENTICATED', 'Bạn cần đăng nhập để thực hiện thao tác này.', 401));
+    }
+
+    const landlord = await authRepository.getLandlordApprovalStatus(req.user.userId);
+    if (!landlord) {
+      return next(new AppError('FORBIDDEN', 'Bạn không có quyền thực hiện thao tác này.', 403));
+    }
+    if (landlord.approval_status !== 'APPROVED') {
+      return next(
+        new AppError(
+          'LANDLORD_NOT_APPROVED',
+          'Hồ sơ chủ nhà của bạn chưa được duyệt. Vui lòng chờ Admin xét duyệt.',
+          403,
+          {
+            approvalStatus: landlord.approval_status,
+            rejectionReason: landlord.rejection_reason || null,
+          },
+        ),
+      );
+    }
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   requireAuth,
   optionalAuthenticate,
   authorize,
+  requireApprovedLandlord,
 };
 

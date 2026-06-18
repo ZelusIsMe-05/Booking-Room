@@ -66,27 +66,48 @@ function findUserByEmailPhoneUsername({ email, phoneNumber, username }) {
  * @param {object} params
  * @returns {Promise<object>} user row vừa tạo (user_id, username, email, phone_number, status)
  */
-async function createUserWithRole({ fullName, username, email, phoneNumber, passwordHash, roleId, roleName, gender, dateOfBirth }) {
+async function createUserWithRole({
+  userId,
+  fullName,
+  username,
+  email,
+  phoneNumber,
+  passwordHash,
+  roleId,
+  roleName,
+  gender,
+  dateOfBirth,
+  idCardFrontUrl,
+  idCardBackUrl,
+}) {
   return db.transaction(async (trx) => {
+    const insertData = {
+      full_name: fullName,
+      username,
+      email,
+      phone_number: phoneNumber,
+      password: passwordHash,
+      role_id: roleId,
+      gender: gender || 'OTHER',
+      date_of_birth: dateOfBirth || null,
+      status: 'INACTIVE',
+    };
+    // Landlord sinh user_id ở app để biết thư mục ảnh trước khi insert; tenant/OAuth
+    // vẫn để DB sinh (gen_random_uuid()).
+    if (userId) {
+      insertData.user_id = userId;
+    }
+
     const [user] = await trx('users')
-      .insert({
-        full_name: fullName,
-        username,
-        email,
-        phone_number: phoneNumber,
-        password: passwordHash,
-        role_id: roleId,
-        gender: gender || 'OTHER',
-        date_of_birth: dateOfBirth || null,
-        status: 'INACTIVE',
-      })
+      .insert(insertData)
       .returning(['user_id', 'username', 'email', 'phone_number', 'status', 'gender', 'date_of_birth']);
 
     if (roleName === 'LANDLORD') {
       await trx('landlords').insert({
         landlord_id: user.user_id,
-        id_card_front_url: '',
-        id_card_back_url: '',
+        id_card_front_url: idCardFrontUrl || '',
+        id_card_back_url: idCardBackUrl || '',
+        approval_status: 'PENDING',
       });
     } else {
       await trx('tenants').insert({ tenant_id: user.user_id });
@@ -276,6 +297,7 @@ async function createOAuthUser({
 function findUserById(userId) {
   return db('users')
     .join('roles', 'users.role_id', 'roles.role_id')
+    .leftJoin('landlords', 'users.user_id', 'landlords.landlord_id')
     .where('users.user_id', userId)
     .select(
       'users.user_id',
@@ -290,7 +312,22 @@ function findUserById(userId) {
       'users.status',
       'users.role_id',
       'roles.role_name',
+      'landlords.approval_status',
     )
+    .first();
+}
+
+/**
+ * Lấy trạng thái duyệt của landlord (PENDING/APPROVED/REJECTED). Trả undefined
+ * nếu user không phải landlord (không có bản ghi trong landlords).
+ *
+ * @param {string} userId
+ * @returns {Promise<{ approval_status: string, rejection_reason: string|null }|undefined>}
+ */
+function getLandlordApprovalStatus(userId) {
+  return db('landlords')
+    .where({ landlord_id: userId })
+    .select('approval_status', 'rejection_reason')
     .first();
 }
 
@@ -464,6 +501,7 @@ module.exports = {
   createOAuthUser,
   findUserByIdentifier,
   findUserById,
+  getLandlordApprovalStatus,
   getAccountSecurity,
   ensureAccountSecurity,
   registerFailedAttempt,

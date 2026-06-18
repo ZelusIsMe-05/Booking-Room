@@ -10,6 +10,7 @@ const authRoutes = require('./routes/auth/auth.route');
 const dashboardRoutes = require('./routes/admin/dashboardRoutes');
 const systemLogRoutes = require('./routes/admin/systemLogRoutes');
 const userRoutes = require('./routes/admin/userRoutes');
+const landlordRoutes = require('./routes/admin/landlordRoutes');
 
 // Host routes
 const hostRoomRoutes = require('./routes/host/roomRoutes');
@@ -32,7 +33,7 @@ const guestRoomRoutes = require('./routes/guest/roomRoutes');
 
 const { notFoundHandler, errorHandler } = require('./middlewares/errorHandler');
 const requestLogger = require('./middlewares/requestLogger');
-const { sendSuccess } = require('./utils/responseHelper');
+const { sendSuccess, sendError } = require('./utils/responseHelper');
 
 const adminRoomRoutes = require('./routes/admin/roomRoutes');
 const app = express();
@@ -46,6 +47,12 @@ app.use(express.json());
 app.use(requestLogger);
 
 const path = require('path');
+
+// Chặn truy cập tĩnh ảnh CCCD (nhạy cảm) — chỉ Admin xem qua
+// GET /api/admin/landlords/:id/id-card/:side. Các asset khác (ảnh phòng…) vẫn public.
+app.use('/uploads/landlords', (req, res) => {
+  return sendError(res, { status: 403, message: 'Không có quyền truy cập tài nguyên này.' });
+});
 
 // Serve uploaded assets
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -72,6 +79,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/admin/system-logs', systemLogRoutes);
 app.use('/api/admin/users', userRoutes);
+app.use('/api/admin/landlords', landlordRoutes);
 app.use('/api/admin', adminBookingRoutes);           // /api/admin/transactions, /api/admin/bookings/expire-deposits
 
 // Host routes
