@@ -60,6 +60,9 @@ export default function BookingCheckoutSection({
 
     // Sync with database to recover or verify session
     async function syncActiveDeposit() {
+      if (!user || user.role !== 'TENANT') {
+        return;
+      }
       try {
         const res = await bookingService.getActiveDeposit(roomId);
         if (res && res.data) {
