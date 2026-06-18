@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
     try {
       const response = await authService.forgotPassword(email.trim());
       setServerSuccess('Yêu cầu đã được xử lý. Vui lòng kiểm tra email của bạn để nhận mã OTP.');
-      setCooldown(300); // 5 minutes cooldown
+      setCooldown(60); // 60 seconds cooldown
       setStep(2);
       setSubmitted(false);
     } catch (err: any) {
@@ -96,7 +96,7 @@ export default function ForgotPasswordPage() {
     try {
       await authService.forgotPassword(email.trim());
       setServerSuccess('Mã OTP mới đã được gửi đến email của bạn.');
-      setCooldown(300);
+      setCooldown(60);
     } catch (err: any) {
       setServerError(err.message || 'Gửi lại OTP thất bại.');
     }

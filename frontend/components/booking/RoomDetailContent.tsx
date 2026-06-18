@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import BookingChatFab from '@/components/booking/BookingChatFab';
@@ -53,31 +54,139 @@ const getAvatarBgColor = (name: string) => {
 };
 
 export default function RoomDetailContent({ room }: RoomDetailContentProps) {
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [zoomScale, setZoomScale] = useState(1);
+  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [hasMoved, setHasMoved] = useState(false);
+
+  const resetZoom = () => {
+    setZoomScale(1);
+    setDragPosition({ x: 0, y: 0 });
+    setHasMoved(false);
+  };
+
   // Prepend a realistic ward to the location if not already specified
   const displayLocation = (room.location || '').includes('Phường') 
     ? room.location 
     : 'Phường 12, ' + (room.location || '');
 
-  // Modern horizontal image gallery grid (Dynamic count of S3 images)
-  // Use S3 images if available, without padding with hardcoded mockup assets
-  const galleryImages = room.images && room.images.length > 0
+  // Consolidate unique S3 & mockup images, ensuring no empty paths
+  const allImages = (room.images && room.images.length > 0
     ? [
         room.image,
         ...room.images.filter((img: string) => img !== room.image)
-      ].slice(0, 4)
-    : [room.image];
+      ]
+    : [room.image]).filter(Boolean);
 
-  // Helper to dynamically adjust grid column span based on the actual number of S3 images
-  const getGridColsClass = (count: number) => {
-    switch (count) {
-      case 1: return 'grid-cols-1 md:grid-cols-1';
-      case 2: return 'grid-cols-2 md:grid-cols-2';
-      case 3: return 'grid-cols-2 md:grid-cols-3';
-      case 4:
-      default:
-        return 'grid-cols-2 md:grid-cols-4';
+  const openLightbox = (index: number) => {
+    setCurrentImageIndex(index);
+    resetZoom();
+    setIsLightboxOpen(true);
+  };
+
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % allImages.length);
+    resetZoom();
+  };
+
+  const prevImage = () => {
+    setCurrentImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
+    resetZoom();
+  };
+
+  const zoomIn = () => {
+    setZoomScale((prev) => Math.min(prev + 0.5, 3));
+  };
+
+  const zoomOut = () => {
+    setZoomScale((prev) => {
+      const next = Math.max(prev - 0.5, 1);
+      if (next === 1) {
+        setDragPosition({ x: 0, y: 0 });
+      }
+      return next;
+    });
+  };
+
+  const handleImageClick = () => {
+    if (hasMoved) {
+      setHasMoved(false);
+      return;
+    }
+    if (zoomScale > 1) {
+      resetZoom();
+    } else {
+      setZoomScale(2);
     }
   };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (zoomScale === 1) return;
+    e.preventDefault();
+    setIsDragging(true);
+    setHasMoved(false);
+    setDragStart({ x: e.clientX - dragPosition.x, y: e.clientY - dragPosition.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || zoomScale === 1) return;
+    e.preventDefault();
+    setHasMoved(true);
+    setDragPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handleMouseUpOrLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (zoomScale === 1 || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    setIsDragging(true);
+    setHasMoved(false);
+    setDragStart({ x: touch.clientX - dragPosition.x, y: touch.clientY - dragPosition.y });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging || zoomScale === 1 || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    setHasMoved(true);
+    setDragPosition({
+      x: touch.clientX - dragStart.x,
+      y: touch.clientY - dragStart.y
+    });
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    if (!isLightboxOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') {
+        nextImage();
+      } else if (e.key === 'ArrowLeft') {
+        prevImage();
+      } else if (e.key === 'Escape') {
+        setIsLightboxOpen(false);
+        resetZoom();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [isLightboxOpen, allImages.length]);
 
   // Format landlord joined date dynamically from database
   let hostJoinedDate = 'Đã tham gia từ tháng 5, 2021';
@@ -122,26 +231,97 @@ export default function RoomDetailContent({ room }: RoomDetailContentProps) {
           </Link>
         </div>
 
-        {/* Top Gallery Grid (Dynamic columns based on image count) */}
-        <section className="relative h-[240px] sm:h-[300px] md:h-[380px] w-full rounded-2xl overflow-hidden shadow-sm bg-slate-100">
-          <div className={`grid ${getGridColsClass(galleryImages.length)} gap-2 h-full w-full`}>
-            {galleryImages.map((imgUrl, index) => (
-              <div key={index} className="relative h-full w-full overflow-hidden">
+        {/* Top Gallery Grid (Dynamic columns based on image count, max 3 in grid preview) */}
+        <section className="relative h-[240px] sm:h-[300px] md:h-[380px] w-full rounded-2xl overflow-hidden shadow-sm bg-slate-100 cursor-pointer">
+          {allImages.length === 1 && (
+            <div className="relative h-full w-full overflow-hidden" onClick={() => openLightbox(0)}>
+              <Image 
+                src={allImages[0]} 
+                alt={`${room.title} - Ảnh 1`} 
+                fill 
+                priority
+                sizes="100vw"
+                className="object-cover transition duration-300 hover:scale-[1.02]" 
+              />
+            </div>
+          )}
+          
+          {allImages.length === 2 && (
+            <div className="grid grid-cols-2 gap-2 h-full w-full">
+              {allImages.map((imgUrl, index) => (
+                <div key={index} className="relative h-full w-full overflow-hidden" onClick={() => openLightbox(index)}>
+                  <Image 
+                    src={imgUrl} 
+                    alt={`${room.title} - Ảnh ${index + 1}`} 
+                    fill 
+                    priority={index === 0}
+                    sizes="50vw"
+                    className="object-cover transition duration-300 hover:scale-[1.02]" 
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {allImages.length >= 3 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 h-full w-full">
+              {/* Large main cover image */}
+              <div className="relative md:col-span-2 h-full w-full overflow-hidden" onClick={() => openLightbox(0)}>
                 <Image 
-                  src={imgUrl} 
-                  alt={`${room.title} - Ảnh ${index + 1}`} 
+                  src={allImages[0]} 
+                  alt={`${room.title} - Ảnh 1`} 
                   fill 
-                  priority={index === 0}
-                  sizes={galleryImages.length === 1 ? "100vw" : "(min-width: 768px) 25vw, 50vw"}
-                  className="object-cover transition duration-300 hover:scale-[1.03]" 
+                  priority
+                  sizes="(min-width: 768px) 66vw, 100vw"
+                  className="object-cover transition duration-300 hover:scale-[1.02]" 
                 />
+                
+                {/* Mobile badge indicator */}
+                <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-[2px] text-white text-[11px] font-bold py-1 px-2.5 rounded-full md:hidden select-none">
+                  1 / {allImages.length}
+                </div>
               </div>
-            ))}
-          </div>
+
+              {/* Smaller stacked images */}
+              <div className="hidden md:grid grid-rows-2 gap-2 h-full w-full">
+                <div className="relative h-full w-full overflow-hidden" onClick={() => openLightbox(1)}>
+                  <Image 
+                    src={allImages[1]} 
+                    alt={`${room.title} - Ảnh 2`} 
+                    fill 
+                    sizes="(min-width: 768px) 33vw, 50vw"
+                    className="object-cover transition duration-300 hover:scale-[1.02]" 
+                  />
+                </div>
+                <div className="relative h-full w-full overflow-hidden" onClick={() => openLightbox(2)}>
+                  <Image 
+                    src={allImages[2]} 
+                    alt={`${room.title} - Ảnh 3`} 
+                    fill 
+                    sizes="(min-width: 768px) 33vw, 50vw"
+                    className="object-cover transition duration-300 hover:scale-[1.02]" 
+                  />
+                  {allImages.length > 3 && (
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white transition duration-300 hover:bg-black/50 select-none">
+                      <span className="text-2xl font-extrabold">+{allImages.length - 2}</span>
+                      <span className="text-xs font-semibold mt-1">hình ảnh</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Floating 'Hiển thị tất cả' Button */}
-          <button className="absolute bottom-4 right-4 bg-white/95 hover:bg-white text-booking-text font-bold text-xs py-2 px-3 rounded-lg flex items-center gap-1.5 transition shadow-md border border-slate-200 active:scale-95">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              openLightbox(0);
+            }}
+            className="absolute bottom-4 right-4 bg-white/95 hover:bg-white text-booking-text font-bold text-xs py-2 px-3 rounded-lg flex items-center gap-1.5 transition shadow-md border border-slate-200 active:scale-95 z-10"
+          >
             <GridIcon className="h-4 w-4 text-booking-text" />
-            Hiển thị tất cả
+            Hiển thị tất cả ({allImages.length})
           </button>
         </section>
 
@@ -312,6 +492,172 @@ export default function RoomDetailContent({ room }: RoomDetailContentProps) {
 
       <BookingFooter />
       <BookingChatFab />
+
+      {/* Premium Image Lightbox Modal */}
+      {isLightboxOpen && (
+        <div 
+          onClick={() => {
+            setIsLightboxOpen(false);
+            resetZoom();
+          }}
+          className="fixed inset-0 z-[100] flex flex-col bg-black/55 backdrop-blur-xl transition-opacity duration-300"
+        >
+          {/* Top Bar (Floating, Transparent) */}
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className="flex items-center justify-between p-4 md:px-8 text-white select-none bg-transparent"
+          >
+            <div className="max-w-[50%]">
+              <h4 className="font-bold text-sm md:text-base truncate">{room.title}</h4>
+              <p className="text-xs text-slate-300 mt-0.5 font-medium">
+                Ảnh {currentImageIndex + 1} / {allImages.length}
+              </p>
+            </div>
+            
+            {/* Zoom Controls & Close Button */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 mr-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/10">
+                <button 
+                  onClick={zoomOut}
+                  disabled={zoomScale === 1}
+                  className="rounded-full p-1 text-white hover:bg-white/10 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                  title="Thu nhỏ"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M18 12H6" />
+                  </svg>
+                </button>
+                <span className="text-xs font-bold text-white min-w-[36px] text-center">
+                  {Math.round(zoomScale * 100)}%
+                </span>
+                <button 
+                  onClick={zoomIn}
+                  disabled={zoomScale === 3}
+                  className="rounded-full p-1 text-white hover:bg-white/10 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                  title="Phóng to"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
+                  </svg>
+                </button>
+                <button 
+                  onClick={resetZoom}
+                  disabled={zoomScale === 1 && dragPosition.x === 0 && dragPosition.y === 0}
+                  className="ml-1 rounded-full p-1 text-white hover:bg-white/10 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition border-l border-white/10 pl-2"
+                  title="Đặt lại"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                  </svg>
+                </button>
+              </div>
+
+              <button 
+                onClick={() => {
+                  setIsLightboxOpen(false);
+                  resetZoom();
+                }}
+                className="rounded-full bg-white/10 p-2.5 text-white hover:bg-white/20 active:scale-95 transition"
+                aria-label="Đóng thư viện ảnh"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Main Content Area (Image + Floating Navigation) */}
+          <div className="relative flex flex-1 items-center justify-center p-4 bg-transparent overflow-hidden">
+            {/* Left Button */}
+            {allImages.length > 1 && zoomScale === 1 && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  prevImage();
+                }}
+                className="absolute left-4 z-10 rounded-full bg-white/10 p-3 text-white hover:bg-white/20 active:scale-95 transition backdrop-blur-sm shadow-md"
+                aria-label="Ảnh trước"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                </svg>
+              </button>
+            )}
+
+            {/* Main Image Container */}
+            <div className="relative w-full h-full max-h-[65vh] md:max-h-[72vh] flex items-center justify-center overflow-hidden">
+              <img 
+                src={allImages[currentImageIndex]} 
+                alt={`${room.title} - Xem chi tiết ảnh ${currentImageIndex + 1}`} 
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUpOrLeave}
+                onMouseLeave={handleMouseUpOrLeave}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleImageClick();
+                }}
+                style={{
+                  transform: `translate(${dragPosition.x}px, ${dragPosition.y}px) scale(${zoomScale})`,
+                  cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
+                }}
+                className="max-h-full max-w-full rounded-lg object-contain shadow-2xl select-none transition-transform duration-75 ease-out"
+              />
+            </div>
+
+            {/* Right Button */}
+            {allImages.length > 1 && zoomScale === 1 && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  nextImage();
+                }}
+                className="absolute right-4 z-10 rounded-full bg-white/10 p-3 text-white hover:bg-white/20 active:scale-95 transition backdrop-blur-sm shadow-md"
+                aria-label="Ảnh tiếp theo"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {/* Bottom Thumbnails Navigation (Floating) */}
+          {allImages.length > 1 && (
+            <div 
+              onClick={(e) => e.stopPropagation()} 
+              className="bg-transparent py-4 px-4 select-none"
+            >
+              <div className="mx-auto flex max-w-2xl justify-center items-center gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                {allImages.map((imgUrl, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setCurrentImageIndex(idx);
+                      resetZoom();
+                    }}
+                    className={`relative h-12 w-16 md:h-14 md:w-20 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all duration-200 ${
+                      idx === currentImageIndex 
+                        ? 'border-white scale-105 shadow-md shadow-white/30' 
+                        : 'border-transparent opacity-50 hover:opacity-100'
+                    }`}
+                  >
+                    <img 
+                      src={imgUrl} 
+                      alt={`Thu nhỏ ${idx + 1}`} 
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

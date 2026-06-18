@@ -119,14 +119,14 @@ export const apiClient = {
     request<T>(endpoint, { 
       ...options, 
       method: 'POST', 
-      body: body ? JSON.stringify(body) : undefined 
+      body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined) 
     }),
     
   put: <T>(endpoint: string, body?: any, options?: RequestInit) => 
     request<T>(endpoint, { 
       ...options, 
       method: 'PUT', 
-      body: body ? JSON.stringify(body) : undefined 
+      body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined) 
     }),
     
   delete: <T>(endpoint: string, options?: RequestInit) => 
@@ -136,6 +136,6 @@ export const apiClient = {
     request<T>(endpoint, { 
       ...options, 
       method: 'PATCH', 
-      body: body ? JSON.stringify(body) : undefined 
+      body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined) 
     }),
 };

@@ -80,8 +80,22 @@ export const authService = {
     gender: 'MALE' | 'FEMALE' | 'OTHER';
     dateOfBirth?: string | null;
     address?: string | null;
+    avatarFile?: File | null;
+    removeAvatar?: boolean;
   }): Promise<ApiResponse<GetMeResponseData>> => {
-    return apiClient.put<ApiResponse<GetMeResponseData>>('/auth/me', params);
+    const formData = new FormData();
+    formData.append('fullName', params.fullName);
+    formData.append('phoneNumber', params.phoneNumber || '');
+    formData.append('gender', params.gender);
+    formData.append('dateOfBirth', params.dateOfBirth || '');
+    formData.append('address', params.address || '');
+    if (params.removeAvatar) {
+      formData.append('removeAvatar', 'true');
+    }
+    if (params.avatarFile) {
+      formData.append('avatar', params.avatarFile);
+    }
+    return apiClient.put<ApiResponse<GetMeResponseData>>('/auth/me', formData);
   },
 
   changePassword: async (params: {
@@ -109,5 +123,11 @@ export const authService = {
       email,
       purpose,
     });
+  },
+
+  updateAvatar: async (file: File): Promise<ApiResponse<{ avatarUrl: string }>> => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return apiClient.put<ApiResponse<{ avatarUrl: string }>>('/auth/me/avatar', formData);
   },
 };
