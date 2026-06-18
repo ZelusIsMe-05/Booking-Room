@@ -2,6 +2,7 @@ const db = require('../../config/db');
 const AppError = require('../../utils/AppError');
 const roomRepository = require('../../repositories/roomRepository');
 const depositRepository = require('../../repositories/depositRepository');
+const { RESOURCE_TYPES, generateS3Key, uploadToS3, deleteFromS3, extractS3KeyFromUrl } = require('../../utils/s3Helper');
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
 
@@ -63,28 +64,18 @@ async function createRoom(landlordId, payload, files = []) {
 		latitude: payload.latitude || null,
 	};
 
-	// Save files to disk (uploads/rooms) and collect urls
-	const savedUrls = [];
-	const path = require('path');
-	const fs = require('fs');
-	const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'rooms');
-	if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
 	// Use transaction: insert room, images, approval
 	return await db.transaction(async (trx) => {
 		const created = await roomRepository.create(room, [], trx);
+		const savedUrls = [];
 
-		const roomFolder = path.join(uploadDir, created.room_id);
-		if (!fs.existsSync(roomFolder)) fs.mkdirSync(roomFolder, { recursive: true });
-
-		files.forEach((file, idx) => {
-			const ext = path.extname(file.originalname) || '.jpg';
-			const filename = `${Date.now()}-${idx + 1}${ext}`;
-			const outPath = path.join(roomFolder, filename);
-			fs.writeFileSync(outPath, file.buffer);
-			const publicPath = `/uploads/rooms/${created.room_id}/${filename}`;
-			savedUrls.push(publicPath);
-		});
+		// Upload images to AWS S3
+		for (let idx = 0; idx < files.length; idx++) {
+			const file = files[idx];
+			const s3Key = generateS3Key(RESOURCE_TYPES.ROOM, created.room_id, file.originalname, idx + 1);
+			const s3Url = await uploadToS3(file.buffer, s3Key, file.mimetype);
+			savedUrls.push(s3Url);
+		}
 
 		// Insert images into room_images table
 		if (savedUrls.length) {
@@ -105,9 +96,6 @@ async function createRoom(landlordId, payload, files = []) {
 }
 
 async function updateRoom(landlordId, roomId, payload = {}, files = []) {
-	const path = require('path');
-	const fs = require('fs');
-
 	const allowed = ['title','room_type','detailed_address','max_capacity','monthly_rent','deposit_amount','electricity_cost','water_cost','internet_cost','service_fee','room_description','longitude','latitude','status'];
 	const numericFields = ['max_capacity','monthly_rent','deposit_amount','electricity_cost','water_cost','internet_cost','service_fee'];
 
@@ -138,30 +126,38 @@ async function updateRoom(landlordId, roomId, payload = {}, files = []) {
 	}
 	if (files && files.length) needApprovalReset = true;
 
-	const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'rooms');
-	if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
 	return await db.transaction(async (trx) => {
 		let updated = existing;
 		if (Object.keys(patch).length) {
 			updated = await roomRepository.update(roomId, patch, trx);
 		}
 
-		// Handle images replacement if files provided
+		// Handle S3 images replacement if files provided
 		if (files && files.length) {
-			const roomFolder = path.join(uploadDir, roomId);
-			if (!fs.existsSync(roomFolder)) fs.mkdirSync(roomFolder, { recursive: true });
+			// 1. (Optional) Delete old images from S3 to prevent orphans
+			const oldImages = await trx('room_images').select('image_url').where('room_id', roomId);
+			for (const img of oldImages) {
+				const s3Key = extractS3KeyFromUrl(img.image_url);
+				if (s3Key) {
+					try {
+						await deleteFromS3(s3Key);
+					} catch (err) {
+						console.error(`Không thể xóa ảnh cũ trên S3: ${s3Key}`, err);
+					}
+				}
+			}
 
+			// 2. Upload new images to S3
 			const savedUrls = [];
-			files.forEach((file, idx) => {
-				if (!file.size || file.size > MAX_IMAGE_BYTES) throw new AppError('VALIDATION_ERROR', 'Each image must be <= 5MB', 400);
-				const ext = path.extname(file.originalname) || '.jpg';
-				const filename = `${Date.now()}-${idx + 1}${ext}`;
-				const outPath = path.join(roomFolder, filename);
-				fs.writeFileSync(outPath, file.buffer);
-				const publicPath = `/uploads/rooms/${roomId}/${filename}`;
-				savedUrls.push(publicPath);
-			});
+			for (let idx = 0; idx < files.length; idx++) {
+				const file = files[idx];
+				if (!file.size || file.size > MAX_IMAGE_BYTES) {
+					throw new AppError('VALIDATION_ERROR', 'Each image must be <= 5MB', 400);
+				}
+				const s3Key = generateS3Key(RESOURCE_TYPES.ROOM, roomId, file.originalname, idx + 1);
+				const s3Url = await uploadToS3(file.buffer, s3Key, file.mimetype);
+				savedUrls.push(s3Url);
+			}
 
 			await roomRepository.replaceImages(roomId, savedUrls, trx);
 		}
@@ -198,6 +194,9 @@ async function listMyRooms(landlordId, query) {
 async function deleteRoom(landlordId, roomId) {
 	if (!roomId) throw new AppError('VALIDATION_ERROR', 'roomId is required', 400);
 
+	// Load existing room image URLs before we remove them from DB (cascade delete)
+	const images = await db('room_images').select('image_url').where('room_id', roomId);
+
 	return await db.transaction(async (trx) => {
 		// Load room
 		const room = await roomRepository.findById(roomId, trx);
@@ -219,6 +218,16 @@ async function deleteRoom(landlordId, roomId) {
 		} catch (e) {
 			// don't fail deletion if logging fails, but print
 			console.error('Failed to write system log for deleteRoom', e);
+		}
+
+		// Clean up files on AWS S3 asynchronously after transaction commits successfully
+		for (const img of images) {
+			const s3Key = extractS3KeyFromUrl(img.image_url);
+			if (s3Key) {
+				deleteFromS3(s3Key).catch(e => {
+					console.error(`Lỗi khi dọn dẹp ảnh S3 khi xóa phòng: ${s3Key}`, e);
+				});
+			}
 		}
 
 		return true;

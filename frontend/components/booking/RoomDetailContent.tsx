@@ -58,13 +58,26 @@ export default function RoomDetailContent({ room }: RoomDetailContentProps) {
     ? room.location 
     : 'Phường 12, ' + (room.location || '');
 
-  // Modern horizontal image gallery grid (4 images)
-  const galleryImages = [
-    room.image, // Main image
-    'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=600&q=80', // Living room
-    'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=600&q=80', // Bathroom
-    'https://images.unsplash.com/photo-1508333706533-1ab43ecb1606?auto=format&fit=crop&w=600&q=80', // Window view
-  ];
+  // Modern horizontal image gallery grid (Dynamic count of S3 images)
+  // Use S3 images if available, without padding with hardcoded mockup assets
+  const galleryImages = room.images && room.images.length > 0
+    ? [
+        room.image,
+        ...room.images.filter((img: string) => img !== room.image)
+      ].slice(0, 4)
+    : [room.image];
+
+  // Helper to dynamically adjust grid column span based on the actual number of S3 images
+  const getGridColsClass = (count: number) => {
+    switch (count) {
+      case 1: return 'grid-cols-1 md:grid-cols-1';
+      case 2: return 'grid-cols-2 md:grid-cols-2';
+      case 3: return 'grid-cols-2 md:grid-cols-3';
+      case 4:
+      default:
+        return 'grid-cols-2 md:grid-cols-4';
+    }
+  };
 
   // Format landlord joined date dynamically from database
   let hostJoinedDate = 'Đã tham gia từ tháng 5, 2021';
@@ -109,17 +122,17 @@ export default function RoomDetailContent({ room }: RoomDetailContentProps) {
           </Link>
         </div>
 
-        {/* Top Gallery Grid (4 Images side-by-side) */}
+        {/* Top Gallery Grid (Dynamic columns based on image count) */}
         <section className="relative h-[240px] sm:h-[300px] md:h-[380px] w-full rounded-2xl overflow-hidden shadow-sm bg-slate-100">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 h-full w-full">
+          <div className={`grid ${getGridColsClass(galleryImages.length)} gap-2 h-full w-full`}>
             {galleryImages.map((imgUrl, index) => (
               <div key={index} className="relative h-full w-full overflow-hidden">
                 <Image 
                   src={imgUrl} 
                   alt={`${room.title} - Ảnh ${index + 1}`} 
                   fill 
-                  priority={true}
-                  sizes="(min-width: 768px) 25vw, 50vw"
+                  priority={index === 0}
+                  sizes={galleryImages.length === 1 ? "100vw" : "(min-width: 768px) 25vw, 50vw"}
                   className="object-cover transition duration-300 hover:scale-[1.03]" 
                 />
               </div>

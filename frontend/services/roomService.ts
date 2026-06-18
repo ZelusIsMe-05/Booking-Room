@@ -67,7 +67,7 @@ export function mapBackendRoomToBookingRoom(room: any, index?: number): BookingR
   // Extract created_at
   const createdAt = room.createdAt || room.created_at || new Date().toISOString();
 
-  // Assign local mockup images (room-1.png, room-2.png, room-3.png, room-4.png) stably
+  // Use cover_image_url if present, otherwise assign local mockup images (room-1.png, room-2.png, room-3.png, room-4.png) stably
   let imgIndex = 1;
   if (index !== undefined) {
     imgIndex = (index % 4) + 1;
@@ -80,7 +80,18 @@ export function mapBackendRoomToBookingRoom(room: any, index?: number): BookingR
     }
     imgIndex = (Math.abs(hash) % 4) + 1;
   }
-  const mainImage = `/images/booking/room-${imgIndex}.png`;
+  // Map backend S3 image array to string array
+  const backendImages = room.images || [];
+  const galleryImages = backendImages.length > 0 
+    ? backendImages.map((img: any) => img.image_url || img.imageUrl || img) 
+    : undefined;
+
+  // Find cover image from backend images list if coverImageUrl is missing
+  const coverObj = backendImages.find((img: any) => img.isCover === true || img.is_cover === true || img.isCover === 'true');
+  const detectedCover = coverObj ? (coverObj.imageUrl || coverObj.image_url) : (backendImages[0]?.imageUrl || backendImages[0]?.image_url || null);
+  const s3CoverImage = room.cover_image_url || room.coverImageUrl || detectedCover;
+
+  const mainImage = s3CoverImage ? s3CoverImage : `/images/booking/room-${imgIndex}.png`;
 
   return {
     id: String(roomId),
@@ -98,6 +109,7 @@ export function mapBackendRoomToBookingRoom(room: any, index?: number): BookingR
     reviews: 24, // Mock default review count
     amenities: room.amenities || [],
     description: room.roomDescription || room.room_description || '',
+    images: galleryImages,
     electricityCost: Number(room.electricityCost !== undefined ? room.electricityCost : room.electricity_cost) || 0,
     waterCost: Number(room.waterCost !== undefined ? room.waterCost : room.water_cost) || 0,
     internetCost: Number(room.internetCost !== undefined ? room.internetCost : room.internet_cost) || 0,

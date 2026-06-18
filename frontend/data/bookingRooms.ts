@@ -14,6 +14,7 @@ export type BookingRoom = {
   reviews: number;
   amenities: string[];
   description: string;
+  images?: string[];
 };
 
 export const bookingRooms: BookingRoom[] = [];
