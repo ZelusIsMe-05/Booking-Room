@@ -18,15 +18,22 @@ const db = require('../../config/db');
  * @param {string} payload.paymentUrl
  * @returns {Promise<object>} transaction vừa tạo
  */
-async function createTransaction({ depositId, amount, paymentMethod }) {
+async function createTransaction({ transactionId, depositId, amount, paymentMethod, paymentUrl }) {
+  const insertData = {
+    deposit_id: depositId,
+    amount,
+    payment_method: paymentMethod,
+    status: 'PENDING',
+    payment_url: paymentUrl,
+    created_at: db.fn.now(),
+  };
+
+  if (transactionId) {
+    insertData.transaction_id = transactionId;
+  }
+
   const [transaction] = await db('transactions')
-    .insert({
-      deposit_id: depositId,
-      amount,
-      payment_method: paymentMethod,
-      status: 'PENDING',
-      created_at: db.fn.now(),
-    })
+    .insert(insertData)
     .returning('*');
   return transaction;
 }

@@ -78,19 +78,20 @@ async function createTransaction(user, { deposit_id, payment_method, return_url 
     );
   }
 
+  const crypto = require('crypto');
+  const transactionId = crypto.randomUUID();
+  const paymentUrl = buildMockPaymentUrl(transactionId, return_url);
+
   // 4. Tạo transaction
   const transaction = await transactionRepository.createTransaction({
+    transactionId,
     depositId: deposit_id,
     amount: Number(deposit.deposit_amount),
     paymentMethod: String(payment_method).toUpperCase(),
+    paymentUrl,
   });
 
-  // Sinh payment_url sau khi có transaction_id thật.
-  // URL này chỉ trả về cho client ngay lúc tạo, KHÔNG lưu vào DB
-  // vì link thanh toán chỉ có hiệu lực trong thời gian ngắn.
-  const paymentUrl = buildMockPaymentUrl(transaction.transaction_id, return_url);
-
-  return { transaction: { ...transaction, payment_url: paymentUrl }, paymentUrl };
+  return { transaction, paymentUrl };
 }
 
 /**

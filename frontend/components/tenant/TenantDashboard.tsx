@@ -189,10 +189,15 @@ export default function TenantDashboard() {
     if (window.confirm('Bạn có chắc chắn muốn hủy giao dịch đặt cọc này?')) {
       try {
         await bookingService.cancelDeposit(depositId, 'Người dùng chủ động hủy');
-        alert('Hủy giao dịch đặt cọc thành công!');
+        window.dispatchEvent(new CustomEvent('show-toast', {
+          detail: { message: 'Hủy giao dịch đặt cọc thành công!', type: 'success' }
+        }));
+        window.dispatchEvent(new Event('deposit-updated'));
         fetchDeposits();
       } catch (err: any) {
-        alert(err.message || 'Hủy giao dịch thất bại.');
+        window.dispatchEvent(new CustomEvent('show-toast', {
+          detail: { message: err.message || 'Hủy giao dịch thất bại.', type: 'error' }
+        }));
       }
     }
   };

@@ -10,6 +10,8 @@ export const metadata: Metadata = {
   description: 'Hệ thống quản lý và đặt phòng trực tuyến uy tín, tiện lợi.',
 };
 
+import ToastContainer from '@/components/common/ToastContainer';
+
 export default function RootLayout({
   children,
 }: {
@@ -20,6 +22,7 @@ export default function RootLayout({
       <body>
         <AuthProvider>
           {children}
+          <ToastContainer />
         </AuthProvider>
       </body>
     </html>
