@@ -8,6 +8,8 @@ export interface DepositResponse {
   landlord_id: string;
   deposit_amount: number;
   status: 'PROCESSING' | 'CONFIRMED' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED';
+  appointment_time?: string | null;
+  cancellation_reason?: string | null;
   expired_at: string;
   created_at: string;
 }
@@ -46,5 +48,29 @@ export const bookingService = {
     return apiClient.patch<ApiResponse<{ deposit: DepositResponse }>>(`/bookings/deposits/${depositId}/cancel`, {
       reason: reason || 'Người dùng hủy đơn',
     });
+  },
+
+  getMyDeposits: async (params?: { page?: number; limit?: number; status?: string }): Promise<ApiResponse<{
+    deposits: (DepositResponse & { room_title?: string; room_address?: string })[];
+    pagination: { page: number; limit: number; total: number };
+  }>> => {
+    const queryParts = [];
+    if (params) {
+      if (params.page !== undefined) queryParts.push(`page=${params.page}`);
+      if (params.limit !== undefined) queryParts.push(`limit=${params.limit}`);
+      if (params.status !== undefined) queryParts.push(`status=${params.status}`);
+    }
+    const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+    return apiClient.get(`/bookings/deposits/my${queryString}`);
+  },
+
+  getActiveDeposit: async (roomId: string): Promise<ApiResponse<{
+    deposit: DepositResponse;
+    transaction: TransactionResponse | null;
+  } | null>> => {
+    return apiClient.get<ApiResponse<{
+      deposit: DepositResponse;
+      transaction: TransactionResponse | null;
+    } | null>>(`/bookings/deposits/active?room_id=${roomId}`);
   },
 };

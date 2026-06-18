@@ -99,7 +99,7 @@ async function issueTokens(user, { ipAddress, userAgent } = {}) {
  * @param {{ fullName: string, username: string, email: string, phoneNumber: string, password: string }} input
  * @returns {Promise<{ user: object, otpExpiresInSeconds: number }>}
  */
-async function register({ fullName, username, email, phoneNumber, password, gender, dateOfBirth }) {
+async function register({ fullName, username, email, phoneNumber, password, gender, dateOfBirth, role: roleName = 'TENANT' }) {
   // 1. Chặn trùng email / phone / username.
   const existing = await authRepository.findUserByEmailPhoneUsername({ email, phoneNumber, username });
   if (existing) {
@@ -110,21 +110,22 @@ async function register({ fullName, username, email, phoneNumber, password, gend
     );
   }
 
-  // 2. Lấy role TENANT.
-  const role = await authRepository.getRoleIdByName(ROLES.TENANT);
+  // 2. Lấy role.
+  const role = await authRepository.getRoleIdByName(roleName);
   if (!role) {
-    throw new AppError('ROLE_NOT_FOUND', 'Vai trò TENANT chưa được cấu hình.', 500);
+    throw new AppError('ROLE_NOT_FOUND', `Vai trò ${roleName} chưa được cấu hình.`, 500);
   }
 
-  // 3. Hash mật khẩu + tạo user/tenant/account_security trong transaction.
+  // 3. Hash mật khẩu + tạo user/tenant/landlord/account_security trong transaction.
   const passwordHash = await hashPassword(password);
-  const user = await authRepository.createTenantUser({
+  const user = await authRepository.createUserWithRole({
     fullName,
     username,
     email,
     phoneNumber,
     passwordHash,
     roleId: role.role_id,
+    roleName,
     gender,
     dateOfBirth,
   });

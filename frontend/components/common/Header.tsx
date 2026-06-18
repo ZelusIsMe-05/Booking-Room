@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import UserProfileModal from './UserProfileModal';
 import ChangePasswordModal from './ChangePasswordModal';
+import MyDepositsModal from './MyDepositsModal';
 
 export default function Header() {
   const { user, logout } = useAuth();
@@ -19,6 +20,7 @@ export default function Header() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isDepositsOpen, setIsDepositsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Đóng dropdown khi click ra ngoài
@@ -132,6 +134,21 @@ export default function Header() {
                     <span>Đổi mật khẩu</span>
                   </button>
 
+                  {user.role === 'TENANT' && (
+                    <button
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        setIsDepositsOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#172B4D] hover:bg-[#F4F5F7] transition-colors text-left font-medium"
+                    >
+                      <svg className="w-4 h-4 text-[#6B778C]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      <span>Các đơn đặt cọc</span>
+                    </button>
+                  )}
+
                   <Link
                     href="/guest/settings"
                     onClick={() => setIsDropdownOpen(false)}
@@ -183,6 +200,7 @@ export default function Header() {
 
       <UserProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
       <ChangePasswordModal isOpen={isChangePasswordOpen} onClose={() => setIsChangePasswordOpen(false)} />
+      <MyDepositsModal isOpen={isDepositsOpen} onClose={() => setIsDepositsOpen(false)} />
     </header>
   );
 }

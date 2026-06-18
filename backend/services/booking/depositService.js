@@ -227,6 +227,34 @@ async function expireOverdueDeposits() {
   return depositRepository.expireDeposits(overdueDeposits);
 }
 
+/**
+ * Lấy deposit PROCESSING của tenant với room tương ứng kèm transaction PENDING của nó (nếu có).
+ *
+ * @param {object} user
+ * @param {string} roomId
+ * @returns {Promise<object|null>}
+ */
+async function getActiveDeposit(user, roomId) {
+  if (!roomId) {
+    throw new AppError('BAD_REQUEST', 'room_id is required', 400);
+  }
+
+  const deposit = await depositRepository.findActiveDepositByTenantAndRoom(user.userId, roomId);
+  if (!deposit) {
+    return null;
+  }
+
+  const db = require('../../config/db');
+  const transaction = await db('transactions')
+    .where({ deposit_id: deposit.deposit_id, status: 'PENDING' })
+    .first();
+
+  return {
+    deposit,
+    transaction: transaction || null,
+  };
+}
+
 module.exports = {
   createDeposit,
   listMyDeposits,
@@ -235,5 +263,6 @@ module.exports = {
   listDepositsForLandlord,
   updateDepositByLandlord,
   expireOverdueDeposits,
+  getActiveDeposit,
   DEPOSIT_LOCK_MINUTES,
 };

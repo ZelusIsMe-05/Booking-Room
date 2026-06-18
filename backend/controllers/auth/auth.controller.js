@@ -20,8 +20,7 @@ function getClientIp(req) {
  */
 async function register(req, res, next) {
   try {
-    // req.body đã validate + normalize (lowercase email/username) bởi registerSchema.
-    const { fullName, username, email, phoneNumber, password, gender, dateOfBirth } = req.body;
+    const { fullName, username, email, phoneNumber, password, gender, dateOfBirth, role } = req.body;
 
     const { user, otpExpiresInSeconds } = await authService.register({
       fullName,
@@ -31,6 +30,7 @@ async function register(req, res, next) {
       password,
       gender,
       dateOfBirth,
+      role,
     });
 
     return sendSuccess(res, {

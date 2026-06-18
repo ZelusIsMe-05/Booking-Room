@@ -54,6 +54,9 @@ const registerSchema = z
         const date = new Date(dateStr);
         return date <= new Date();
       }, 'Ngày sinh không được ở tương lai.'),
+    role: z.enum(['TENANT', 'LANDLORD'], {
+      errorMap: () => ({ message: 'Vui lòng chọn vai trò (Người thuê hoặc Chủ nhà).' })
+    }).default('TENANT'),
   })
   .refine((d) => d.password === d.confirmPassword, {
     message: 'Xác nhận mật khẩu không khớp.',

@@ -60,13 +60,13 @@ function findUserByEmailPhoneUsername({ email, phoneNumber, username }) {
 }
 
 /**
- * Tạo user TENANT mới ở trạng thái INACTIVE, kèm bản ghi tenants + account_security,
- * trong một transaction.
+ * Tạo user mới ở trạng thái INACTIVE, kèm bản ghi tenants/landlords + account_security,
+ * trong một transaction tùy thuộc vào vai trò (roleName).
  *
  * @param {object} params
  * @returns {Promise<object>} user row vừa tạo (user_id, username, email, phone_number, status)
  */
-async function createTenantUser({ fullName, username, email, phoneNumber, passwordHash, roleId, gender, dateOfBirth }) {
+async function createUserWithRole({ fullName, username, email, phoneNumber, passwordHash, roleId, roleName, gender, dateOfBirth }) {
   return db.transaction(async (trx) => {
     const [user] = await trx('users')
       .insert({
@@ -82,7 +82,15 @@ async function createTenantUser({ fullName, username, email, phoneNumber, passwo
       })
       .returning(['user_id', 'username', 'email', 'phone_number', 'status', 'gender', 'date_of_birth']);
 
-    await trx('tenants').insert({ tenant_id: user.user_id });
+    if (roleName === 'LANDLORD') {
+      await trx('landlords').insert({
+        landlord_id: user.user_id,
+        id_card_front_url: '',
+        id_card_back_url: '',
+      });
+    } else {
+      await trx('tenants').insert({ tenant_id: user.user_id });
+    }
     await trx('account_security').insert({ user_id: user.user_id });
 
     return user;
@@ -442,7 +450,7 @@ function findUserPasswordById(userId) {
 module.exports = {
   getRoleIdByName,
   findUserByEmailPhoneUsername,
-  createTenantUser,
+  createUserWithRole,
   findInactiveUserByEmail,
   findUserByEmail,
   activateUser,

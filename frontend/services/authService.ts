@@ -60,6 +60,7 @@ export const authService = {
     confirmPassword: string;
     gender: 'MALE' | 'FEMALE' | 'OTHER';
     dateOfBirth: string;
+    role?: 'TENANT' | 'LANDLORD';
   }): Promise<ApiResponse<{
     userId: string;
     username: string;

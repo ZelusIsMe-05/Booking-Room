@@ -115,6 +115,20 @@ async function expireDeposits(req, res, next) {
   }
 }
 
+async function getActiveDeposit(req, res, next) {
+  try {
+    const { room_id } = req.query;
+    const active = await depositService.getActiveDeposit(req.user, room_id);
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Lay thong tin don dat coc dang hoat dong thanh cong.',
+      data: active,
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   createDeposit,
   listMyDeposits,
@@ -123,4 +137,5 @@ module.exports = {
   listDepositsForLandlord,
   updateDepositByLandlord,
   expireDeposits,
+  getActiveDeposit,
 };

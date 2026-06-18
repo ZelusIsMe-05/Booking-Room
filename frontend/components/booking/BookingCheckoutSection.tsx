@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { WalletIcon, MessageIcon, LockIcon, ClockIcon } from './Icons';
 import { bookingService } from '@/services/bookingService';
+import { useAuth } from '@/context/AuthContext';
 
 interface BookingCheckoutSectionProps {
   roomId: string;
@@ -17,6 +18,7 @@ export default function BookingCheckoutSection({
   deposit,
   roomTitle,
 }: BookingCheckoutSectionProps) {
+  const { user } = useAuth();
   // Booking status and states
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -34,7 +36,7 @@ export default function BookingCheckoutSection({
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load active transaction from sessionStorage if page is reloaded
+  // Load active transaction from sessionStorage and sync with backend on page load
   useEffect(() => {
     const savedDepositId = sessionStorage.getItem(`active_deposit_${roomId}`);
     const savedEndTime = sessionStorage.getItem(`active_deposit_expire_${roomId}`);
@@ -55,6 +57,48 @@ export default function BookingCheckoutSection({
         sessionStorage.removeItem(`active_deposit_url_${roomId}`);
       }
     }
+
+    // Sync with database to recover or verify session
+    async function syncActiveDeposit() {
+      try {
+        const res = await bookingService.getActiveDeposit(roomId);
+        if (res && res.data) {
+          const { deposit, transaction } = res.data;
+          if (deposit && deposit.status === 'PROCESSING') {
+            const expireTime = new Date(deposit.expired_at).getTime();
+            const remainingTime = Math.floor((expireTime - Date.now()) / 1000);
+            
+            if (remainingTime > 0) {
+              const paymentUrlFromDb = transaction?.payment_url || null;
+              
+              setActiveDepositId(deposit.deposit_id);
+              setCountdown(remainingTime);
+              setTimerActive(true);
+              
+              if (paymentUrlFromDb) {
+                setPaymentUrl(paymentUrlFromDb);
+                setIsModalOpen(true);
+                
+                // Keep sessionStorage updated
+                sessionStorage.setItem(`active_deposit_${roomId}`, deposit.deposit_id);
+                sessionStorage.setItem(`active_deposit_url_${roomId}`, paymentUrlFromDb);
+                sessionStorage.setItem(`active_deposit_expire_${roomId}`, String(expireTime));
+              }
+            } else {
+              // Local state might think it's active but it's expired on server
+              setActiveDepositId(null);
+              setPaymentUrl(null);
+              setTimerActive(false);
+              setIsModalOpen(false);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to sync active deposit from database:', err);
+      }
+    }
+
+    syncActiveDeposit();
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -83,6 +127,16 @@ export default function BookingCheckoutSection({
   }, [timerActive, countdown]);
 
   const startBookingFlow = async () => {
+    if (!user) {
+      alert('Vui lòng đăng nhập bằng tài khoản Người thuê để đặt cọc.');
+      window.location.href = `/auth/login?redirect=/rooms/${roomId}`;
+      return;
+    }
+    if (user.role !== 'TENANT') {
+      alert('Chỉ tài khoản Người thuê (Tenant) mới có thể thực hiện đặt cọc.');
+      return;
+    }
+
     setLoading(true);
     setErrorMsg(null);
     console.log('--- startBookingFlow initiated ---');
@@ -238,7 +292,7 @@ export default function BookingCheckoutSection({
             {isPickerExpanded ? (
               <div className="border border-slate-200 rounded-2xl bg-slate-50 p-4 flex flex-col gap-3 shadow-inner animate-in slide-in-from-top-3 duration-200">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-booking-text uppercase tracking-wide flex items-center gap-1">
+                  <span className="text-[13px] font-extrabold text-booking-text uppercase tracking-wide flex items-center gap-1">
                     <span>📅</span> Đặt lịch hẹn xem phòng
                   </span>
                   <button
@@ -252,22 +306,22 @@ export default function BookingCheckoutSection({
 
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-extrabold text-booking-muted uppercase tracking-wider">Chọn ngày</label>
+                    <label className="text-[11px] font-extrabold text-booking-muted uppercase tracking-wider">Chọn ngày</label>
                     <input
                       type="date"
                       value={tempDate}
                       onChange={(e) => setTempDate(e.target.value)}
                       min={new Date().toISOString().split('T')[0]}
-                      className="w-full bg-white rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-booking-text focus:border-[#004ac6] focus:ring-1 focus:ring-[#004ac6]/10 outline-none transition cursor-pointer"
+                      className="w-full bg-white rounded-lg border border-slate-200 px-3 py-2 text-[13px] font-bold text-booking-text focus:border-[#004ac6] focus:ring-1 focus:ring-[#004ac6]/10 outline-none transition cursor-pointer"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-extrabold text-booking-muted uppercase tracking-wider">Chọn giờ</label>
+                    <label className="text-[11px] font-extrabold text-booking-muted uppercase tracking-wider">Chọn giờ</label>
                     <input
                       type="time"
                       value={tempTime}
                       onChange={(e) => setTempTime(e.target.value)}
-                      className="w-full bg-white rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-booking-text focus:border-[#004ac6] focus:ring-1 focus:ring-[#004ac6]/10 outline-none transition cursor-pointer"
+                      className="w-full bg-white rounded-lg border border-slate-200 px-3 py-2 text-[13px] font-bold text-booking-text focus:border-[#004ac6] focus:ring-1 focus:ring-[#004ac6]/10 outline-none transition cursor-pointer"
                     />
                   </div>
                 </div>
@@ -288,7 +342,7 @@ export default function BookingCheckoutSection({
                       setAppointmentTime(`${tempDate}T${tempTime}`);
                       setIsPickerExpanded(false);
                     }}
-                    className="flex-1 py-2 bg-[#004ac6] hover:bg-[#003f9e] text-white font-extrabold rounded-xl text-xs transition shadow-md active:scale-[0.98]"
+                    className="flex-1 py-2 bg-[#004ac6] hover:bg-[#003f9e] text-white font-extrabold rounded-xl text-[13px] transition shadow-md active:scale-[0.98]"
                   >
                     Áp dụng
                   </button>
@@ -297,7 +351,7 @@ export default function BookingCheckoutSection({
                     onClick={() => {
                       setIsPickerExpanded(false);
                     }}
-                    className="py-2 px-3.5 border border-slate-200 bg-white text-booking-text font-bold rounded-xl text-xs hover:bg-slate-50 transition active:scale-[0.98]"
+                    className="py-2 px-3.5 border border-slate-200 bg-white text-booking-text font-bold rounded-xl text-[13px] hover:bg-slate-50 transition active:scale-[0.98]"
                   >
                     Hủy
                   </button>
@@ -308,7 +362,7 @@ export default function BookingCheckoutSection({
                 <div className="flex items-center gap-2.5">
                   <span className="text-xl select-none">📅</span>
                   <div>
-                    <p className="text-[10px] font-extrabold text-[#004ac6] uppercase tracking-wider">Lịch hẹn xem phòng</p>
+                    <p className="text-[11px] font-extrabold text-[#004ac6] uppercase tracking-wider">Lịch hẹn xem phòng</p>
                     <p className="text-sm font-extrabold text-booking-text mt-0.5">
                       {formatDisplayDateTime(appointmentTime)}
                     </p>
@@ -323,7 +377,7 @@ export default function BookingCheckoutSection({
                       setTempTime(t || '10:00');
                       setIsPickerExpanded(true);
                     }}
-                    className="text-xs font-bold text-[#004ac6] hover:underline"
+                    className="text-[13px] font-bold text-[#004ac6] hover:underline"
                   >
                     Sửa
                   </button>
@@ -335,7 +389,7 @@ export default function BookingCheckoutSection({
                       setTempDate('');
                       setTempTime('');
                     }}
-                    className="h-6 w-6 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center font-bold text-xs transition active:scale-95"
+                    className="h-6 w-6 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center font-bold text-[13px] transition active:scale-95"
                     title="Xóa lịch hẹn"
                   >
                     ✕
@@ -354,7 +408,7 @@ export default function BookingCheckoutSection({
                   setTempTime('10:00');
                   setIsPickerExpanded(true);
                 }}
-                className="w-full rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 font-bold py-3.5 px-4 text-xs text-booking-text flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-sm"
+                className="w-full rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 font-bold py-3.5 px-4 text-[13px] text-booking-text flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-sm"
               >
                 <span>📅</span>
                 Đặt lịch hẹn xem phòng (Tùy chọn)
@@ -395,8 +449,8 @@ export default function BookingCheckoutSection({
             disabled={loading || timerActive}
             onClick={startBookingFlow}
             className={`w-full rounded-xl text-white font-bold py-3.5 px-5 flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-md ${timerActive
-                ? 'bg-slate-400 cursor-not-allowed shadow-none'
-                : 'bg-[#004ac6] hover:bg-[#003f9e] shadow-booking-primary/10'
+              ? 'bg-slate-400 cursor-not-allowed shadow-none'
+              : 'bg-[#004ac6] hover:bg-[#003f9e] shadow-booking-primary/10'
               }`}
           >
             {loading ? (
@@ -415,7 +469,22 @@ export default function BookingCheckoutSection({
             )}
           </button>
 
-          <button className="w-full rounded-xl border border-booking-primary text-booking-primary font-bold py-3.5 px-5 flex items-center justify-center gap-2 hover:bg-[#004ac6]/5 transition active:scale-[0.98]">
+          <button
+            type="button"
+            onClick={() => {
+              if (!user) {
+                alert('Vui lòng đăng nhập bằng tài khoản Người thuê để nhắn tin cho chủ nhà.');
+                window.location.href = `/auth/login?redirect=/rooms/${roomId}`;
+                return;
+              }
+              if (user.role !== 'TENANT') {
+                alert('Chỉ tài khoản Người thuê (Tenant) mới có thể nhắn tin với chủ nhà.');
+                return;
+              }
+              alert('Tính năng nhắn tin với chủ phòng đang được kết nối.');
+            }}
+            className="w-full rounded-xl border border-booking-primary text-booking-primary font-bold py-3.5 px-5 flex items-center justify-center gap-2 hover:bg-[#004ac6]/5 transition active:scale-[0.98]"
+          >
             <MessageIcon className="h-5 w-5 text-booking-primary" />
             Nhắn tin cho chủ phòng
           </button>

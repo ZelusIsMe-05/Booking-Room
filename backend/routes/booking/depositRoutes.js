@@ -16,6 +16,9 @@ router.post('/', requireAuth, authorizeRoles('TENANT'), depositController.create
 // IMPORTANT: route /my phải đứng TRƯỚC /:id để tránh bị "my" parse thành depositId
 router.get('/my', requireAuth, authorizeRoles('TENANT'), depositController.listMyDeposits);
 
+// GET /api/bookings/deposits/active — Lấy deposit dang hoat dong cua tenant cho 1 phong
+router.get('/active', requireAuth, authorizeRoles('TENANT'), depositController.getActiveDeposit);
+
 // GET /api/bookings/deposits/:id — Tenant / Landlord / Admin xem chi tiết
 router.get('/:id', requireAuth, depositController.getDepositDetail);
 

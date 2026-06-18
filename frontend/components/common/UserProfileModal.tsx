@@ -93,7 +93,7 @@ export default function UserProfileModal({ isOpen, onClose }: UserProfileModalPr
             <div>
               <h2 className="text-2xl font-bold text-gray-900">Thông tin cá nhân</h2>
               <p className="text-xs font-semibold text-[#0052CC] bg-[#0052CC]/10 px-2 py-0.5 rounded-full inline-block mt-1">
-                {user.role === 'ADMIN' ? 'Quản trị viên' : user.role === 'HOST' ? 'Chủ nhà' : 'Người thuê phòng'}
+                {user.role === 'ADMIN' ? 'Quản trị viên' : (user.role === 'HOST' || user.role === 'LANDLORD') ? 'Chủ nhà' : 'Người thuê phòng'}
               </p>
             </div>
           </div>

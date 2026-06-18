@@ -119,6 +119,54 @@ async function getRoomById(roomId, user = null) {
   } else {
     // For normal guests/tenants, strictly use the optimized public fetch
     room = await roomRepository.findPublicById(roomId);
+
+    // If room is locked or not available publicly, check if this is a tenant with a pending deposit
+    if (!room && user && user.role === 'TENANT') {
+      const activeDeposit = await db('deposits')
+        .where({ tenant_id: user.userId, room_id: roomId, status: 'PROCESSING' })
+        .first();
+
+      if (activeDeposit) {
+        room = await db('rooms as r')
+          .select(
+            'r.room_id',
+            'r.landlord_id',
+            'r.title',
+            'r.room_type',
+            'r.detailed_address',
+            'r.room_description',
+            'r.max_capacity',
+            'r.monthly_rent',
+            'r.deposit_amount',
+            'r.electricity_cost',
+            'r.water_cost',
+            'r.internet_cost',
+            'r.service_fee',
+            'r.status',
+            'r.average_rating',
+            'r.longitude',
+            'r.latitude',
+            'r.created_at',
+            'r.updated_at',
+            'u.full_name as landlord_full_name',
+            'u.username as landlord_username',
+            'u.avatar_url as landlord_avatar_url',
+            'u.email as landlord_email',
+            'u.phone_number as landlord_phone_number',
+            'sec.created_at as landlord_created_at'
+          )
+          .leftJoin('users as u', 'u.user_id', 'r.landlord_id')
+          .leftJoin('account_security as sec', 'sec.user_id', 'u.user_id')
+          .where('r.room_id', roomId)
+          .whereExists(function () {
+            this.select('*')
+              .from('room_approvals as ra')
+              .whereRaw('ra.room_id = r.room_id')
+              .andWhere('ra.approval_status', 'APPROVED');
+          })
+          .first();
+      }
+    }
   }
 
   if (!room) {

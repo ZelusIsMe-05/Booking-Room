@@ -23,6 +23,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('MALE');
   const [dateOfBirth, setDateOfBirth] = useState('');
+  const [role, setRole] = useState<'TENANT' | 'LANDLORD'>('TENANT');
   
   const [otp, setOtp] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -85,6 +86,7 @@ export default function RegisterPage() {
         confirmPassword,
         gender,
         dateOfBirth,
+        role,
       });
 
       setServerSuccess('Đăng ký thành công! Vui lòng kiểm tra email để nhận mã OTP kích hoạt.');
@@ -157,6 +159,43 @@ export default function RegisterPage() {
 
       {step === 1 ? (
         <form className="mt-5 space-y-4" onSubmit={handleRegister} noValidate>
+          <div className="block">
+            <span className="mb-2 flex items-center justify-between text-xs font-bold uppercase tracking-[0.05em] text-booking-text">
+              Vai trò của bạn
+            </span>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setRole('TENANT')}
+                className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all gap-2 ${
+                  role === 'TENANT'
+                    ? 'border-[#0052CC] bg-[#EEF4FF] text-[#0052CC] font-bold shadow-sm'
+                    : 'border-booking-border bg-booking-surface text-booking-muted hover:border-booking-muted'
+                }`}
+              >
+                <svg className="w-6 h-6 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <span className="text-sm">Người thuê</span>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setRole('LANDLORD')}
+                className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all gap-2 ${
+                  role === 'LANDLORD'
+                    ? 'border-[#0052CC] bg-[#EEF4FF] text-[#0052CC] font-bold shadow-sm'
+                    : 'border-booking-border bg-booking-surface text-booking-muted hover:border-booking-muted'
+                }`}
+              >
+                <svg className="w-6 h-6 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11V20a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                <span className="text-sm">Chủ nhà</span>
+              </button>
+            </div>
+          </div>
+
           <AuthInput
             label="Họ và tên"
             value={fullName}
