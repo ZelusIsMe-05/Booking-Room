@@ -248,7 +248,7 @@ async function getMe(req, res, next) {
 async function updateProfile(req, res, next) {
   try {
     // req.body đã được validate bởi updateProfileSchema.
-    const { fullName, phoneNumber, gender, dateOfBirth, address } = req.body;
+    const { fullName, phoneNumber, gender, dateOfBirth, address, removeAvatar } = req.body;
     const userId = req.user.userId;
 
     const updatedUser = await authService.updateUserProfile(userId, {
@@ -257,6 +257,8 @@ async function updateProfile(req, res, next) {
       gender,
       dateOfBirth,
       address,
+      avatarFile: req.file,
+      removeAvatar,
     });
 
     return sendSuccess(res, {
@@ -290,6 +292,33 @@ async function changePassword(req, res, next) {
   }
 }
 
+/**
+ * PUT /api/auth/me/avatar
+ * Cập nhật ảnh đại diện của người dùng.
+ */
+async function updateAvatar(req, res, next) {
+  try {
+    if (!req.file) {
+      throw new AppError('FILE_REQUIRED', 'Vui lòng chọn ảnh đại diện.', 400);
+    }
+    const userId = req.user.userId;
+    const s3Url = await authService.updateUserAvatar(
+      userId,
+      req.file.buffer,
+      req.file.originalname,
+      req.file.mimetype
+    );
+
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Cập nhật ảnh đại diện thành công.',
+      data: { avatarUrl: s3Url },
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   register,
   verifyOtp,
@@ -303,4 +332,5 @@ module.exports = {
   getMe,
   updateProfile,
   changePassword,
+  updateAvatar,
 };

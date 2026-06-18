@@ -25,6 +25,7 @@ function findUserByIdentifier(identifier) {
       'users.phone_number',
       'users.username',
       'users.password',
+      'users.avatar_url',
       'users.gender',
       'users.date_of_birth',
       'users.address',
@@ -423,16 +424,21 @@ function deleteRefreshToken(tokenId, userId) {
  * @param {object} updates
  * @returns {Promise<object>}
  */
-async function updateUserProfile(userId, { fullName, phoneNumber, gender, dateOfBirth, address }) {
+async function updateUserProfile(userId, { fullName, phoneNumber, gender, dateOfBirth, address, avatarUrl }) {
+  const updatePayload = {
+    full_name: fullName,
+    phone_number: phoneNumber || null,
+    gender: gender || 'OTHER',
+    date_of_birth: dateOfBirth || null,
+    address: address || null,
+  };
+  if (avatarUrl !== undefined) {
+    updatePayload.avatar_url = avatarUrl;
+  }
+
   const [updatedUser] = await db('users')
     .where({ user_id: userId })
-    .update({
-      full_name: fullName,
-      phone_number: phoneNumber || null,
-      gender: gender || 'OTHER',
-      date_of_birth: dateOfBirth || null,
-      address: address || null,
-    })
+    .update(updatePayload)
     .returning('*');
   return updatedUser;
 }
@@ -445,6 +451,23 @@ async function updateUserProfile(userId, { fullName, phoneNumber, gender, dateOf
  */
 function findUserPasswordById(userId) {
   return db('users').where({ user_id: userId }).select('password').first();
+}
+
+/**
+ * Cập nhật cột avatar_url của người dùng.
+ *
+ * @param {string} userId
+ * @param {string} avatarUrl
+ * @returns {Promise<object>} updated user row
+ */
+async function updateUserAvatar(userId, avatarUrl) {
+  const [updatedUser] = await db('users')
+    .where({ user_id: userId })
+    .update({
+      avatar_url: avatarUrl,
+    })
+    .returning('*');
+  return updatedUser;
 }
 
 module.exports = {
@@ -474,4 +497,5 @@ module.exports = {
   deleteRefreshToken,
   updateUserProfile,
   findUserPasswordById,
+  updateUserAvatar,
 };

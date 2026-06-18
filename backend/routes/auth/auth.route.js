@@ -2,6 +2,7 @@ const express = require('express');
 const authController = require('../../controllers/auth/auth.controller');
 const { requireAuth } = require('../../middlewares/authMiddleware');
 const { validate } = require('../../middlewares/validateMiddleware');
+const { uploadAvatar } = require('../../middlewares/uploadMiddleware');
 const {
   registerSchema,
   verifyOtpSchema,
@@ -49,9 +50,12 @@ router.post('/logout', requireAuth, validate({ body: logoutSchema }), authContro
 router.get('/me', requireAuth, authController.getMe);
 
 // PUT /api/auth/me — update the authenticated user's profile
-router.put('/me', requireAuth, validate({ body: updateProfileSchema }), authController.updateProfile);
+router.put('/me', requireAuth, uploadAvatar, validate({ body: updateProfileSchema }), authController.updateProfile);
 
 // POST /api/auth/change-password — change the user's password
 router.post('/change-password', requireAuth, validate({ body: changePasswordSchema }), authController.changePassword);
+
+// PUT /api/auth/me/avatar — update the user's avatar image via S3
+router.put('/me/avatar', requireAuth, uploadAvatar, authController.updateAvatar);
 
 module.exports = router;

@@ -7,6 +7,7 @@ const otpStore = require('../../redis/otpStore');
 const oauthProviders = require('./oauthProviders');
 const { sendOtpEmail } = require('../../utils/mailer');
 const { toRegisterResponse } = require('../../models/User');
+const { generateS3Key, uploadToS3, deleteFromS3, extractS3KeyFromUrl, RESOURCE_TYPES } = require('../../utils/s3Helper');
 const {
   signAccessToken,
   signRefreshToken,
@@ -50,6 +51,7 @@ function toPublicUser(user) {
     gender: user.gender,
     dateOfBirth: formatDate(user.date_of_birth),
     address: user.address || null,
+    avatarUrl: user.avatar_url || null,
   };
 }
 
@@ -608,7 +610,7 @@ async function loginWithOAuth({ provider, code, redirectUri, ipAddress, userAgen
  * @param {{ fullName: string, phoneNumber?: string|null, gender: string, dateOfBirth?: string|null, address?: string|null }} updates
  * @returns {Promise<object>} updated public user profile
  */
-async function updateUserProfile(userId, { fullName, phoneNumber, gender, dateOfBirth, address }) {
+async function updateUserProfile(userId, { fullName, phoneNumber, gender, dateOfBirth, address, avatarFile, removeAvatar }) {
   // 1. Kiểm tra xem user có tồn tại không.
   const user = await authRepository.findUserById(userId);
   if (!user) {
@@ -629,6 +631,37 @@ async function updateUserProfile(userId, { fullName, phoneNumber, gender, dateOf
     }
   }
 
+  let avatarUrl = undefined;
+  if (removeAvatar === true || removeAvatar === 'true') {
+    // Xóa avatar cũ trên S3 nếu có
+    if (user.avatar_url) {
+      const oldS3Key = extractS3KeyFromUrl(user.avatar_url);
+      if (oldS3Key) {
+        try {
+          await deleteFromS3(oldS3Key);
+        } catch (err) {
+          console.error(`Error deleting old avatar from S3 for user ${userId}:`, err.message || err);
+        }
+      }
+    }
+    avatarUrl = null;
+  } else if (avatarFile) {
+    // Xóa avatar cũ trên S3 nếu có
+    if (user.avatar_url) {
+      const oldS3Key = extractS3KeyFromUrl(user.avatar_url);
+      if (oldS3Key) {
+        try {
+          await deleteFromS3(oldS3Key);
+        } catch (err) {
+          console.error(`Error deleting old avatar from S3 for user ${userId}:`, err.message || err);
+        }
+      }
+    }
+    // Tải avatar mới lên S3
+    const s3Key = generateS3Key(RESOURCE_TYPES.AVATAR, userId, avatarFile.originalname);
+    avatarUrl = await uploadToS3(avatarFile.buffer, s3Key, avatarFile.mimetype);
+  }
+
   // 3. Tiến hành cập nhật.
   const updatedUser = await authRepository.updateUserProfile(userId, {
     fullName,
@@ -636,12 +669,16 @@ async function updateUserProfile(userId, { fullName, phoneNumber, gender, dateOf
     gender,
     dateOfBirth,
     address,
+    avatarUrl,
   });
 
   // 4. Trả về thông tin public sau cập nhật.
   // Đảm bảo user có role_name để toPublicUser hoạt động đúng.
   updatedUser.role_name = user.role_name;
-  return toPublicUser(updatedUser);
+  return {
+    ...toPublicUser(updatedUser),
+    avatarUrl: updatedUser.avatar_url || null,
+  };
 }
 
 /**
@@ -676,6 +713,44 @@ async function changePassword(userId, { currentPassword, newPassword }) {
   await authRepository.updateUserPassword(userId, newPasswordHash);
 }
 
+/**
+ * Cập nhật ảnh đại diện của người dùng sử dụng AWS S3.
+ *
+ * @param {string} userId
+ * @param {Buffer} fileBuffer
+ * @param {string} originalName
+ * @param {string} mimeType
+ * @returns {Promise<string>} URL ảnh đại diện mới tải lên S3
+ */
+async function updateUserAvatar(userId, fileBuffer, originalName, mimeType) {
+  // 1. Kiểm tra user
+  const user = await authRepository.findUserById(userId);
+  if (!user) {
+    throw new AppError('USER_NOT_FOUND', 'Tài khoản không tồn tại.', 404);
+  }
+
+  // 2. Xóa avatar cũ trên S3 nếu có
+  if (user.avatar_url) {
+    const oldS3Key = extractS3KeyFromUrl(user.avatar_url);
+    if (oldS3Key) {
+      try {
+        await deleteFromS3(oldS3Key);
+      } catch (err) {
+        console.error(`Error deleting old avatar from S3 for user ${userId}:`, err.message || err);
+      }
+    }
+  }
+
+  // 3. Tải avatar mới lên S3
+  const s3Key = generateS3Key(RESOURCE_TYPES.AVATAR, userId, originalName);
+  const s3Url = await uploadToS3(fileBuffer, s3Key, mimeType);
+
+  // 4. Lưu vào CSDL
+  await authRepository.updateUserAvatar(userId, s3Url);
+
+  return s3Url;
+}
+
 module.exports = {
   register,
   verifyOtp,
@@ -689,4 +764,5 @@ module.exports = {
   getCurrentUser,
   updateUserProfile,
   changePassword,
+  updateUserAvatar,
 };

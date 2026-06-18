@@ -71,30 +71,45 @@ const updateProfileSchema = z.object({
     .min(1, 'Vui lòng nhập họ tên.')
     .max(255, 'Họ tên tối đa 255 ký tự.'),
   phoneNumber: z
-    .string({ error: 'Vui lòng nhập số điện thoại.' })
+    .string()
     .trim()
-    .regex(phoneRegex, 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.')
+    .or(z.literal(''))
     .or(z.null())
-    .optional(),
+    .optional()
+    .refine((val) => {
+      if (!val) return true;
+      return phoneRegex.test(val);
+    }, 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.'),
   gender: z
     .enum(['MALE', 'FEMALE', 'OTHER'], {
       errorMap: () => ({ message: 'Vui lòng chọn giới tính hợp lệ.' })
     })
     .default('OTHER'),
   dateOfBirth: z
-    .string({ error: 'Vui lòng chọn ngày sinh.' })
+    .string()
     .trim()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày sinh không đúng định dạng (YYYY-MM-DD).')
-    .refine((dateStr) => {
-      const date = new Date(dateStr);
-      return date <= new Date();
-    }, 'Ngày sinh không được ở tương lai.')
+    .or(z.literal(''))
     .or(z.null())
-    .optional(),
+    .optional()
+    .refine((val) => {
+      if (!val) return true;
+      return /^\d{4}-\d{2}-\d{2}$/.test(val);
+    }, 'Ngày sinh không đúng định dạng (YYYY-MM-DD).')
+    .refine((val) => {
+      if (!val) return true;
+      const date = new Date(val);
+      return date <= new Date();
+    }, 'Ngày sinh không được ở tương lai.'),
   address: z
     .string()
     .trim()
     .max(500, 'Địa chỉ tối đa 500 ký tự.')
+    .or(z.literal(''))
+    .or(z.null())
+    .optional(),
+  removeAvatar: z
+    .string()
+    .or(z.boolean())
     .or(z.null())
     .optional(),
 });
