@@ -41,10 +41,10 @@ export default function LoginPage() {
           let success = false;
           try {
             const redirectUri = `${window.location.origin}/auth/login`;
-            await loginWithOAuth(provider, code, redirectUri);
+            const data = await loginWithOAuth(provider, code, redirectUri);
             localStorage.removeItem('oauth_provider');
             success = true;
-            router.push('/');
+            router.push(data?.user?.role === 'LANDLORD' ? '/host' : '/');
           } catch (err: any) {
             setServerError(err.message || 'Đăng nhập qua mạng xã hội thất bại. Vui lòng thử lại.');
             oauthCalled.current = false;
@@ -75,8 +75,8 @@ export default function LoginPage() {
 
     setSubmitting(true);
     try {
-      await login(email.trim(), password);
-      router.push('/');
+      const loggedInUser = await login(email.trim(), password);
+      router.push(loggedInUser?.role === 'LANDLORD' ? '/host' : '/');
     } catch (err: any) {
       setServerError(err.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.');
       setSubmitting(false);

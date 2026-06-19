@@ -18,7 +18,7 @@ export default function BookingManageCard({ listing }: BookingManageCardProps) {
         listing.status === 'rented' ? 'opacity-80' : ''
       }`}
     >
-      <div className="relative aspect-[4/3] overflow-hidden">
+      <Link href={`/host/listings/${listing.id}`} className="relative block aspect-[4/3] overflow-hidden" aria-label={`Xem ${listing.title}`}>
         <img src={listing.imageSrc} alt={listing.imageAlt} className="h-full w-full object-cover" />
         {listing.status === 'rented' && <div className="absolute inset-0 bg-white/30 mix-blend-saturation" />}
         <span
@@ -33,13 +33,16 @@ export default function BookingManageCard({ listing }: BookingManageCardProps) {
           )}
           {listing.statusLabel}
         </span>
-      </div>
+      </Link>
 
       <div className="p-5">
         <div className="flex items-start justify-between gap-4">
-          <h3 className="min-w-0 flex-1 truncate text-xl font-semibold leading-7 text-booking-text">
+          <Link
+            href={`/host/listings/${listing.id}`}
+            className="min-w-0 flex-1 truncate text-xl font-semibold leading-7 text-booking-text transition hover:text-booking-primary"
+          >
             {listing.title}
-          </h3>
+          </Link>
           <p className="shrink-0 whitespace-nowrap pt-0.5">
             <span className="text-xl font-semibold leading-7 text-booking-primary">{listing.price}</span>
             <span className="text-sm leading-5 text-booking-muted">{listing.priceUnit}</span>
