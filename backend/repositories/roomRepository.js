@@ -231,19 +231,46 @@ async function findByLandlord(landlordId, { page = 1, limit = 20, sortBy = 'crea
 
   const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
 
+  // Effective approval status per room. room_approvals can hold multiple rows
+  // after edits (each edit inserts a new PENDING), and approval_id is a UUID so
+  // there is no orderable column to pick the "latest". We surface PENDING when
+  // any pending approval exists, otherwise APPROVED, otherwise REJECTED.
+  const approvalAgg = db('room_approvals')
+    .select('room_id')
+    .select(
+      db.raw(
+        `CASE
+           WHEN bool_or(approval_status = 'PENDING') THEN 'PENDING'
+           WHEN bool_or(approval_status = 'APPROVED') THEN 'APPROVED'
+           ELSE 'REJECTED'
+         END as approval_status`
+      )
+    )
+    .groupBy('room_id')
+    .as('ra');
+
   const rows = await db('rooms as r')
     .select(
       'r.room_id',
       'r.title',
       'r.room_type',
       'r.detailed_address',
+      'r.room_description',
       'r.max_capacity',
       'r.monthly_rent',
       'r.deposit_amount',
+      'r.electricity_cost',
+      'r.water_cost',
+      'r.internet_cost',
+      'r.service_fee',
+      'r.longitude',
+      'r.latitude',
       'r.status',
       'r.created_at',
-      'r.updated_at'
+      'r.updated_at',
+      'ra.approval_status'
     )
+    .leftJoin(approvalAgg, 'ra.room_id', 'r.room_id')
     .where('r.landlord_id', landlordId)
     .modify((qb) => {
       if (status) qb.where('r.status', status);

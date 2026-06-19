@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import HostApprovalGate from '@/components/host/HostApprovalGate';
 
 export const metadata: Metadata = {
   title: 'Kênh Chủ Nhà',
@@ -6,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function HostLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return <HostApprovalGate>{children}</HostApprovalGate>;
 }

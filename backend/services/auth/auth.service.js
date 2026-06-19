@@ -41,7 +41,7 @@ function formatDate(date) {
 }
 
 function toPublicUser(user) {
-  return {
+  const publicUser = {
     userId: user.user_id,
     fullName: user.full_name,
     email: user.email,
@@ -54,6 +54,12 @@ function toPublicUser(user) {
     address: user.address || null,
     avatarUrl: user.avatar_url || null,
   };
+
+  if (user.approval_status) {
+    publicUser.approvalStatus = user.approval_status;
+  }
+
+  return publicUser;
 }
 
 /**
@@ -518,8 +524,6 @@ async function getCurrentUser(userId) {
   return {
     ...toPublicUser(user),
     avatarUrl: user.avatar_url || null,
-    // Chỉ landlord có approval_status (leftJoin → null cho vai trò khác).
-    ...(user.approval_status ? { approvalStatus: user.approval_status } : {}),
   };
 }
 

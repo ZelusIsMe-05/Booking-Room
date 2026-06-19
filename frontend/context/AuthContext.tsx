@@ -19,6 +19,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const clearStoredCredentials = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+    }
+  };
+
   const refreshProfile = async () => {
     try {
       const response = await authService.getMe();
@@ -30,17 +37,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       console.error('Failed to fetch user profile:', error);
       // If error (meaning refresh token is also expired or invalid), clean credentials
-      logout();
+      clearStoredCredentials();
+      setUser(null);
     }
   };
 
   useEffect(() => {
     const initAuth = async () => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-      if (token) {
-        await refreshProfile();
+      try {
+        if (token) {
+          await Promise.race([
+            refreshProfile(),
+            new Promise((_, reject) =>
+              window.setTimeout(
+                () => reject(new Error('Auth profile request timed out')),
+                6000
+              )
+            ),
+          ]);
+        }
+      } catch (error) {
+        console.error('Failed to initialize auth:', error);
+        clearStoredCredentials();
+        setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     initAuth();
   }, []);
@@ -81,10 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Instantly clear local storage and state for reactive UI responsiveness
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-    }
+    clearStoredCredentials();
     setUser(null);
 
     // Catch any error from the background API call so it never bubbles up or breaks the client

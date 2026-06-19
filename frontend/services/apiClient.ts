@@ -45,6 +45,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   ) {
     const refreshToken = localStorage.getItem('refreshToken');
     if (refreshToken) {
+      let refreshedToken: string | null = null;
+
       if (!isRefreshing) {
         isRefreshing = true;
         try {
@@ -61,6 +63,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
             if (newAccessToken) {
               localStorage.setItem('accessToken', newAccessToken);
               console.log('Centralized API client: Token refreshed successfully.');
+              refreshedToken = newAccessToken;
               onRefreshed(newAccessToken);
               isRefreshing = false;
             } else {
@@ -75,21 +78,25 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
           // Clear credentials and force redirect to login
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
-          window.location.href = '/login';
+          window.location.href = '/auth/login';
           throw refreshErr;
         }
       }
 
-      // Return a Promise that resolves when the token refresh is complete
-      const retryOriginalRequest = new Promise((resolve) => {
-        subscribeTokenRefresh((token: string) => {
-          headers.set('Authorization', `Bearer ${token}`);
-          resolve(fetch(url, { ...options, headers }));
+      if (refreshedToken) {
+        headers.set('Authorization', `Bearer ${refreshedToken}`);
+        response = await fetch(url, { ...options, headers });
+      } else {
+        // Return a Promise that resolves when another request finishes refreshing.
+        const retryOriginalRequest = new Promise<Response>((resolve) => {
+          subscribeTokenRefresh((token: string) => {
+            headers.set('Authorization', `Bearer ${token}`);
+            resolve(fetch(url, { ...options, headers }));
+          });
         });
-      });
 
-      // Await the retried response
-      response = (await retryOriginalRequest) as Response;
+        response = await retryOriginalRequest;
+      }
     }
   }
 

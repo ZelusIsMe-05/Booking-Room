@@ -12,4 +12,8 @@ export interface User {
   address?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | string | null;
+  approval_status?: 'PENDING' | 'APPROVED' | 'REJECTED' | string | null;
+  rejectionReason?: string | null;
+  rejection_reason?: string | null;
 }
