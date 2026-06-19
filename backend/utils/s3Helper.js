@@ -1,5 +1,8 @@
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const path = require('path');
+const dotenv = require('dotenv');
+
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
 // Helper to clean quotes from environment variables
 const cleanEnvVar = (val) => {
@@ -12,18 +15,21 @@ const accessKeyId = cleanEnvVar(process.env.AWS_ACCESS_KEY_ID);
 const secretAccessKey = cleanEnvVar(process.env.AWS_SECRET_ACCESS_KEY);
 const bucketName = cleanEnvVar(process.env.AWS_S3_BUCKET_NAME) || 'booking-room-bucket';
 
-// Initialize S3 Client
-const s3Client = new S3Client({
-  region,
-  credentials: {
+const s3Config = { region };
+if (accessKeyId && secretAccessKey) {
+  s3Config.credentials = {
     accessKeyId,
     secretAccessKey,
-  },
-});
+  };
+}
+
+// Initialize S3 Client
+const s3Client = new S3Client(s3Config);
 
 const RESOURCE_TYPES = {
   AVATAR: 'avatars',
   ROOM: 'rooms',
+  ID_CARD: 'landlords',
   REPORT: 'reports',
   SYSTEM: 'system'
 };
@@ -46,6 +52,10 @@ function generateS3Key(type, entityId, originalName, index = '') {
       return `avatars/${entityId}/${timestamp}${ext}`;
     case RESOURCE_TYPES.ROOM:
       return `rooms/${entityId}/${timestamp}${suffix}${ext}`;
+    case RESOURCE_TYPES.ID_CARD: {
+      const side = String(index) === '2' || String(index).toLowerCase() === 'back' ? '2' : '1';
+      return `landlords/${entityId}/${side}.jpg`;
+    }
     case RESOURCE_TYPES.REPORT:
       return `reports/${entityId}/${timestamp}${suffix}${ext}`;
     case RESOURCE_TYPES.SYSTEM:

@@ -121,7 +121,7 @@ async function createUserWithRole({
 }
 
 /**
- * Cập nhật 2 ảnh CCCD của landlord (key lưu DB). Khi `resetToPending` (nộp lại sau khi
+ * Cập nhật 2 ảnh CCCD của landlord (URL S3 lưu DB). Khi `resetToPending` (nộp lại sau khi
  * bị từ chối) thì đưa approval_status về PENDING + xóa lý do từ chối để Admin duyệt lại.
  *
  * @param {string} landlordId

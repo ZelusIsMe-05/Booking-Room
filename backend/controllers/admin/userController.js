@@ -1,5 +1,4 @@
 const userService = require('../../services/admin/userService');
-const idCardStorage = require('../../services/storage/idCardStorage');
 const AppError = require('../../utils/AppError');
 const { sendSuccess } = require('../../utils/responseHelper');
 
@@ -200,10 +199,11 @@ async function getLandlordIdCard(req, res, next) {
       return res.redirect(302, key);
     }
 
-    const stream = idCardStorage.getStream(key);
-    stream.on('error', () => next(new AppError('ID_CARD_NOT_FOUND', 'Khong doc duoc anh CCCD.', 404)));
-    res.type('image/jpeg');
-    return stream.pipe(res);
+    throw new AppError(
+      'LEGACY_ID_CARD_STORAGE',
+      'Ảnh CCCD đang ở storage cũ. Vui lòng chạy migration ảnh CCCD lên S3.',
+      409,
+    );
   } catch (err) {
     return next(err);
   }
