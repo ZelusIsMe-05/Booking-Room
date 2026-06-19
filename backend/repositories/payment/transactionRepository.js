@@ -170,7 +170,10 @@ async function findAllTransactions({ status, paymentMethod, page = 1, limit = 20
     .join('deposits', 'transactions.deposit_id', 'deposits.deposit_id')
     .join('rooms', 'deposits.room_id', 'rooms.room_id')
     .join('tenants', 'deposits.tenant_id', 'tenants.tenant_id')
-    .join('users', 'tenants.tenant_id', 'users.user_id');
+    .join('users', 'tenants.tenant_id', 'users.user_id')
+    .leftJoin('room_images', function() {
+      this.on('rooms.room_id', 'room_images.room_id').andOnVal('room_images.is_cover', '=', true);
+    });
 
   if (status) query.where('transactions.status', status.toUpperCase());
   if (paymentMethod) query.where('transactions.payment_method', paymentMethod.toUpperCase());
@@ -184,6 +187,7 @@ async function findAllTransactions({ status, paymentMethod, page = 1, limit = 20
     .select(
       'transactions.*',
       'rooms.title as room_title',
+      'room_images.image_url as room_cover_image_url',
       'deposits.status as deposit_status',
       'users.full_name as tenant_name',
       'users.email as tenant_email',

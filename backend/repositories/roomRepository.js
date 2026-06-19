@@ -274,7 +274,7 @@ async function findByLandlord(landlordId, { page = 1, limit = 20, sortBy = 'crea
   return { items, total };
 }
 
-async function findPendingRooms({ page = 1, limit = 20 } = {}, trx) {
+async function findPendingRooms({ page = 1, limit = 20, status } = {}, trx) {
   const conn = trx || db;
   const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
 
@@ -299,7 +299,12 @@ async function findPendingRooms({ page = 1, limit = 20 } = {}, trx) {
       'ri.image_url as cover_image_url'
     )
     .innerJoin('room_approvals as ra', function () {
-      this.on('r.room_id', 'ra.room_id').andOnVal('ra.approval_status', '=', 'PENDING');
+      this.on('r.room_id', 'ra.room_id');
+      if (status) {
+        this.andOnVal('ra.approval_status', '=', status.toUpperCase());
+      } else {
+        this.andOnVal('ra.approval_status', '=', 'PENDING');
+      }
     })
     .leftJoin('users as u', 'u.user_id', 'r.landlord_id')
     .leftJoin('room_images as ri', function () {
@@ -312,12 +317,17 @@ async function findPendingRooms({ page = 1, limit = 20 } = {}, trx) {
   return rows;
 }
 
-async function countPendingRooms(trx) {
+async function countPendingRooms({ status } = {}, trx) {
   const conn = trx || db;
   const [result] = await conn('rooms as r')
     .countDistinct({ total: 'r.room_id' })
     .innerJoin('room_approvals as ra', function () {
-      this.on('r.room_id', 'ra.room_id').andOnVal('ra.approval_status', '=', 'PENDING');
+      this.on('r.room_id', 'ra.room_id');
+      if (status) {
+        this.andOnVal('ra.approval_status', '=', status.toUpperCase());
+      } else {
+        this.andOnVal('ra.approval_status', '=', 'PENDING');
+      }
     });
   
   return Number(result.total) || 0;

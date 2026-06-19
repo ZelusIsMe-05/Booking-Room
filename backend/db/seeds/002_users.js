@@ -72,14 +72,14 @@ exports.seed = async function (knex) {
   await knex('landlords').insert([
     {
       landlord_id: 'c0000000-0000-0000-0000-000000000002',
-      id_card_front_url: 'https://cdn.booking.local/cccd/landlord1_front.jpg',
-      id_card_back_url: 'https://cdn.booking.local/cccd/landlord1_back.jpg',
+      id_card_front_url: 'https://booking-room-bucket.s3.ap-southeast-1.amazonaws.com/cccd/landlord1_front.jpg',
+      id_card_back_url: 'https://booking-room-bucket.s3.ap-southeast-1.amazonaws.com/cccd/landlord1_back.jpg',
       approval_status: 'APPROVED',
     },
     {
       landlord_id: 'c0000000-0000-0000-0000-000000000003',
-      id_card_front_url: 'https://cdn.booking.local/cccd/landlord2_front.jpg',
-      id_card_back_url: 'https://cdn.booking.local/cccd/landlord2_back.jpg',
+      id_card_front_url: 'https://booking-room-bucket.s3.ap-southeast-1.amazonaws.com/cccd/landlord2_front.jpg',
+      id_card_back_url: 'https://booking-room-bucket.s3.ap-southeast-1.amazonaws.com/cccd/landlord2_back.jpg',
       approval_status: 'APPROVED',
     },
   ]);

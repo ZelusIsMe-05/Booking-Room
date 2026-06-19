@@ -75,8 +75,12 @@ export default function LoginPage() {
 
     setSubmitting(true);
     try {
-      await login(email.trim(), password);
-      router.push('/');
+      const user = await login(email.trim(), password);
+      if (user?.role === 'ADMIN') {
+        router.push('/admin/dashboard');
+      } else {
+        router.push('/');
+      }
     } catch (err: any) {
       setServerError(err.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.');
       setSubmitting(false);

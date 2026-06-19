@@ -25,8 +25,10 @@ async function listPendingRooms(query = {}) {
     throw new AppError('VALIDATION_ERROR', 'limit must be a positive integer and no more than ' + MAX_LIMIT, 400);
   }
 
-  const rows = await roomRepository.findPendingRooms({ page, limit });
-  const total = await roomRepository.countPendingRooms();
+  const status = query.status;
+
+  const rows = await roomRepository.findPendingRooms({ page, limit, status });
+  const total = await roomRepository.countPendingRooms({ status });
 
   const mappedItems = rows.map((row) => ({
     roomId: row.room_id,

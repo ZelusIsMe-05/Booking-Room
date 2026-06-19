@@ -42,11 +42,4 @@ exports.seed = async function (knex) {
       latitude: 10.7546,
     },
   ]);
-
-  await knex('room_images').insert([
-    { room_id: 'd0000000-0000-0000-0000-000000000001', sequence_number: 1, image_url: 'https://cdn.booking.local/rooms/r1_1.jpg', is_cover: true },
-    { room_id: 'd0000000-0000-0000-0000-000000000001', sequence_number: 2, image_url: 'https://cdn.booking.local/rooms/r1_2.jpg', is_cover: false },
-    { room_id: 'd0000000-0000-0000-0000-000000000002', sequence_number: 1, image_url: 'https://cdn.booking.local/rooms/r2_1.jpg', is_cover: true },
-    { room_id: 'd0000000-0000-0000-0000-000000000002', sequence_number: 2, image_url: 'https://cdn.booking.local/rooms/r2_2.jpg', is_cover: false },
-  ]);
 };

@@ -11,6 +11,8 @@ const dashboardRoutes = require('./routes/admin/dashboardRoutes');
 const systemLogRoutes = require('./routes/admin/systemLogRoutes');
 const userRoutes = require('./routes/admin/userRoutes');
 const landlordRoutes = require('./routes/admin/landlordRoutes');
+const adminViolationReportRoutes = require('./routes/admin/violationReportRoutes');
+const adminSupportTicketRoutes = require('./routes/admin/supportTicketRoutes');
 
 // Host routes
 const hostRoomRoutes = require('./routes/host/roomRoutes');
@@ -80,6 +82,8 @@ app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/admin/system-logs', systemLogRoutes);
 app.use('/api/admin/users', userRoutes);
 app.use('/api/admin/landlords', landlordRoutes);
+app.use('/api/admin/violation-reports', adminViolationReportRoutes);
+app.use('/api/admin/support-tickets', adminSupportTicketRoutes);
 app.use('/api/admin', adminBookingRoutes);           // /api/admin/transactions, /api/admin/bookings/expire-deposits
 
 // Host routes

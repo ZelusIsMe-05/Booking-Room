@@ -10,4 +10,6 @@ export interface User {
   gender?: 'MALE' | 'FEMALE' | 'OTHER';
   dateOfBirth?: string | null;
   address?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }

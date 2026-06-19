@@ -7,7 +7,7 @@ import { authService } from '@/services/authService';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (identifier: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<User>;
   logout: () => void | Promise<void>;
   refreshProfile: () => Promise<void>;
   loginWithOAuth: (provider: string, code: string, redirectUri: string) => Promise<any>;
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth();
   }, []);
 
-  const login = async (identifier: string, password: string) => {
+  const login = async (identifier: string, password: string): Promise<User> => {
     const response = await authService.login(identifier, password);
     const { accessToken, refreshToken, user: loggedInUser } = response.data;
     
@@ -55,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     setUser(loggedInUser);
+    return loggedInUser;
   };
 
   const loginWithOAuth = async (provider: string, code: string, redirectUri: string) => {

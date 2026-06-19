@@ -3,6 +3,7 @@ const AppError = require('../../utils/AppError');
 const { hashPassword } = require('../../utils/hashPassword');
 const { USER_STATUS } = require('../../config/authConstants');
 const { writeSystemLog } = require('./systemLogService');
+const notificationRepository = require('../../repositories/guest/notificationRepository');
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -195,6 +196,13 @@ async function lockUser({ userId, reason, actor }) {
 
   await logAdminAction(actor, `ADMIN_LOCK_USER target=${userId} reason=${reason || ''}`.trim());
 
+  await notificationRepository.insertNotification({
+    user_id: userId,
+    title: 'Tài khoản của bạn đã bị khóa',
+    content: `Quản trị viên đã khóa tài khoản của bạn. Lý do: ${reason || 'Vi phạm điều khoản hệ thống'}. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.`,
+    notification_type: 'SYSTEM',
+  });
+
   const updated = await getExistingUser(row.user_id);
   return toPublicUser(updated);
 }
@@ -216,6 +224,13 @@ async function unlockUser({ userId, actor }) {
     });
 
   await logAdminAction(actor, `ADMIN_UNLOCK_USER target=${userId}`);
+
+  await notificationRepository.insertNotification({
+    user_id: userId,
+    title: 'Tài khoản của bạn đã được mở khóa',
+    content: 'Quản trị viên đã mở khóa tài khoản của bạn. Bây giờ bạn có thể sử dụng các dịch vụ bình thường.',
+    notification_type: 'SYSTEM',
+  });
 
   const updated = await getExistingUser(row.user_id);
   return toPublicUser(updated);
@@ -396,6 +411,13 @@ async function approveLandlord({ userId, actor }) {
 
   await logAdminAction(actor, `ADMIN_APPROVE_LANDLORD target=${userId}`);
 
+  await notificationRepository.insertNotification({
+    user_id: userId,
+    title: 'Xác thực Chủ nhà thành công',
+    content: 'Tài liệu xác thực của bạn đã được quản trị viên phê duyệt. Bây giờ bạn có thể bắt đầu đăng bài cho thuê phòng trên hệ thống.',
+    notification_type: 'SYSTEM',
+  });
+
   return toLandlordDetail(await getExistingLandlord(userId));
 }
 
@@ -417,6 +439,13 @@ async function rejectLandlord({ userId, reason, actor }) {
     });
 
   await logAdminAction(actor, `ADMIN_REJECT_LANDLORD target=${userId} reason=${trimmedReason}`);
+
+  await notificationRepository.insertNotification({
+    user_id: userId,
+    title: 'Từ chối xác thực Chủ nhà',
+    content: `Tài liệu xác thực của bạn không được chấp thuận. Lý do: ${trimmedReason}. Vui lòng cập nhật lại thông tin chính xác.`,
+    notification_type: 'SYSTEM',
+  });
 
   return toLandlordDetail(await getExistingLandlord(userId));
 }
