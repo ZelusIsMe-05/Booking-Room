@@ -332,7 +332,7 @@ async function getExistingLandlord(userId) {
     .first();
 
   if (!row) {
-    throw new AppError('LANDLORD_NOT_FOUND', 'Khong tim thay ho so chu nha.', 404);
+    throw new AppError('LANDLORD_NOT_FOUND', 'Không tìm thấy chủ nhà.', 404);
   }
 
   return row;
@@ -340,7 +340,7 @@ async function getExistingLandlord(userId) {
 
 async function listLandlords(filters = {}) {
   if (filters.status && !LANDLORD_APPROVAL_STATUSES.includes(String(filters.status).trim().toUpperCase())) {
-    throw new AppError('INVALID_STATUS', 'Trang thai duyet khong hop le.', 400);
+    throw new AppError('INVALID_STATUS', 'Trạng thái duyệt không hợp lệ.', 400);
   }
 
   const page = parsePositiveInteger(filters.page, DEFAULT_PAGE);
@@ -378,7 +378,12 @@ async function getLandlordDetail(userId) {
 }
 
 async function approveLandlord({ userId, actor }) {
-  await getExistingLandlord(userId);
+  const row = await getExistingLandlord(userId);
+
+  // Chỉ duyệt khi chủ nhà đã nộp đủ 2 ảnh CCCD (cột NULL = chưa nộp).
+  if (!row.id_card_front_url || !row.id_card_back_url) {
+    throw new AppError('ID_CARD_MISSING', 'Chủ nhà không nộp đủ CCCD, không thể phê duyệt.', 400);
+  }
 
   await db('landlords')
     .where({ landlord_id: userId })
@@ -426,13 +431,13 @@ async function rejectLandlord({ userId, reason, actor }) {
 async function getLandlordIdCardKey(userId, side) {
   const normalized = String(side || '').toLowerCase();
   if (normalized !== 'front' && normalized !== 'back') {
-    throw new AppError('INVALID_ID_CARD_SIDE', 'side chi nhan front hoac back.', 400);
+    throw new AppError('INVALID_ID_CARD_SIDE', 'Chỉ nhận mặt trước và sau CCCD.', 400);
   }
 
   const row = await getExistingLandlord(userId);
   const key = normalized === 'front' ? row.id_card_front_url : row.id_card_back_url;
   if (!key) {
-    throw new AppError('ID_CARD_NOT_FOUND', 'Khong tim thay anh CCCD.', 404);
+    throw new AppError('ID_CARD_NOT_FOUND', 'Không tìm thấy ảnh CCCD.', 404);
   }
   return key;
 }

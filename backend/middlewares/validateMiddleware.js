@@ -35,19 +35,4 @@ function validate(schemas) {
   };
 }
 
-/**
- * Validate body của /register theo `role`: TENANT dùng registerTenantSchema,
- * LANDLORD dùng registerLandlordSchema. Tái dùng cơ chế parse + map lỗi của `validate`.
- * Phải chạy SAU multer (để req.body đã có khi gửi multipart) và trước controller.
- *
- * @type {import('express').RequestHandler}
- */
-function validateRegisterByRole(req, res, next) {
-  // require ở trong hàm để tránh phụ thuộc vòng (models/User không import middleware).
-  const { registerTenantSchema, registerLandlordSchema } = require('../models/User');
-  const role = String((req.body && req.body.role) || 'TENANT').toUpperCase();
-  const schema = role === 'LANDLORD' ? registerLandlordSchema : registerTenantSchema;
-  return validate({ body: schema })(req, res, next);
-}
-
-module.exports = { validate, validateRegisterByRole };
+module.exports = { validate };

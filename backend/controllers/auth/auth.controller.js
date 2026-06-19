@@ -16,38 +16,12 @@ function getClientIp(req) {
 
 /**
  * POST /api/auth/register
- * Một endpoint cho cả 2 vai trò; `role` (đã validate theo schema tương ứng) quyết
- * định nhánh xử lý. LANDLORD cần kèm 2 ảnh CCCD (multipart) + sẽ chờ Admin duyệt.
+ * Một endpoint cho cả 2 vai trò; chỉ nhận thông tin (JSON). LANDLORD được tạo ở
+ * trạng thái chờ Admin duyệt và nộp ảnh CCCD sau qua POST /auth/landlord/id-cards.
  */
 async function register(req, res, next) {
   try {
     const { fullName, username, email, phoneNumber, password, gender, dateOfBirth, role } = req.body;
-
-    if (role === 'LANDLORD') {
-      const front = req.files?.id_card_front?.[0];
-      const back = req.files?.id_card_back?.[0];
-      if (!front || !back) {
-        throw new AppError('ID_CARD_REQUIRED', 'Vui lòng tải lên ảnh mặt trước và mặt sau CCCD.', 400);
-      }
-
-      const { user, otpExpiresInSeconds } = await authService.registerLandlord({
-        fullName,
-        username,
-        email,
-        phoneNumber,
-        password,
-        gender,
-        dateOfBirth,
-        idCardFront: front,
-        idCardBack: back,
-      });
-
-      return sendSuccess(res, {
-        status: 201,
-        message: 'Đăng ký chủ nhà thành công. Vui lòng kiểm tra email để nhận mã OTP; hồ sơ sẽ được Admin duyệt.',
-        data: { ...user, otpExpiresInSeconds },
-      });
-    }
 
     const { user, otpExpiresInSeconds } = await authService.register({
       fullName,
@@ -57,13 +31,46 @@ async function register(req, res, next) {
       password,
       gender,
       dateOfBirth,
-      role: 'TENANT',
+      role,
     });
+
+    const message =
+      role === 'LANDLORD'
+        ? 'Đăng ký chủ nhà thành công. Vui lòng kiểm tra email để nhận mã OTP; sau khi đăng nhập hãy nộp ảnh CCCD để Admin duyệt.'
+        : 'Đăng ký thành công. Vui lòng kiểm tra email để nhận mã OTP.';
 
     return sendSuccess(res, {
       status: 201,
-      message: 'Đăng ký thành công. Vui lòng kiểm tra email để nhận mã OTP.',
+      message,
       data: { ...user, otpExpiresInSeconds },
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * POST /api/auth/landlord/id-cards
+ * Landlord đang đăng nhập nộp/cập nhật 2 ảnh CCCD (mặt trước + sau, multipart).
+ */
+async function submitLandlordIdCards(req, res, next) {
+  try {
+    const front = req.files?.id_card_front?.[0];
+    const back = req.files?.id_card_back?.[0];
+    if (!front || !back) {
+      throw new AppError('ID_CARD_REQUIRED', 'Vui lòng tải lên ảnh mặt trước và mặt sau CCCD.', 400);
+    }
+
+    const landlord = await authService.submitLandlordIdCards({
+      userId: req.user.userId,
+      idCardFront: front,
+      idCardBack: back,
+    });
+
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Nộp ảnh CCCD thành công. Hồ sơ sẽ được Admin duyệt.',
+      data: { landlord },
     });
   } catch (err) {
     return next(err);
@@ -319,6 +326,7 @@ async function changePassword(req, res, next) {
 
 module.exports = {
   register,
+  submitLandlordIdCards,
   verifyOtp,
   resendOtp,
   forgotPassword,

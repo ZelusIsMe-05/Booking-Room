@@ -136,6 +136,12 @@ async function register({ fullName, username, email, phoneNumber, password, gend
   await otpStore.setOtp({ purpose: otpStore.OTP_PURPOSE.REGISTRATION, identifier: email, code });
   await sendOtpEmail({ to: email, code, purpose: otpStore.OTP_PURPOSE.REGISTRATION });
 
+  // Repo không trả role_name/approval_status; bổ sung để response phản ánh đúng vai trò.
+  user.role_name = roleName;
+  if (roleName === ROLES.LANDLORD) {
+    user.approval_status = 'PENDING';
+  }
+
   return {
     user: toRegisterResponse(user),
     otpExpiresInSeconds: env.otp.ttlSeconds,
@@ -143,77 +149,42 @@ async function register({ fullName, username, email, phoneNumber, password, gend
 }
 
 /**
- * Đăng ký tài khoản LANDLORD mới (status INACTIVE, approval PENDING) kèm ảnh CCCD.
- * Khác register thường: sinh user_id ở app để biết thư mục ảnh, ghi ảnh ra storage
- * TRƯỚC transaction DB; nếu tạo DB lỗi thì xóa ảnh vừa ghi để tránh rác. Landlord
- * sau khi verify OTP vẫn PENDING cho tới khi Admin duyệt.
+ * Landlord (đã đăng nhập) nộp/cập nhật 2 ảnh CCCD. Ghi ảnh ra storage rồi cập nhật
+ * 2 cột id_card. Cho nộp lại khi đang PENDING/REJECTED (ghi đè tên cố định); nếu trước
+ * đó bị REJECTED thì đưa hồ sơ về PENDING để Admin duyệt lại.
  *
- * @param {{ fullName, username, email, phoneNumber, password, gender, dateOfBirth,
- *   idCardFront: { buffer: Buffer }, idCardBack: { buffer: Buffer } }} input
- * @returns {Promise<{ user: object, otpExpiresInSeconds: number }>}
+ * @param {{ userId: string, idCardFront: { buffer: Buffer }, idCardBack: { buffer: Buffer } }} input
+ * @returns {Promise<{ approvalStatus: string, idCardSubmitted: boolean }>}
  */
-async function registerLandlord({ fullName, username, email, phoneNumber, password, gender, dateOfBirth, idCardFront, idCardBack }) {
-  // 1. Chặn trùng email / phone / username.
-  const existing = await authRepository.findUserByEmailPhoneUsername({ email, phoneNumber, username });
-  if (existing) {
-    throw new AppError(
-      'DUPLICATE_ACCOUNT',
-      'Email, số điện thoại hoặc tên đăng nhập đã được sử dụng.',
-      409,
-    );
+async function submitLandlordIdCards({ userId, idCardFront, idCardBack }) {
+  // 1. User phải tồn tại và là LANDLORD.
+  const user = await authRepository.findUserById(userId);
+  if (!user) {
+    throw new AppError('USER_NOT_FOUND', 'Tài khoản không tồn tại.', 404);
+  }
+  if (user.role_name !== ROLES.LANDLORD) {
+    throw new AppError('NOT_LANDLORD', 'Chỉ tài khoản chủ nhà mới được nộp ảnh CCCD.', 403);
   }
 
-  // 2. Lấy role LANDLORD.
-  const role = await authRepository.getRoleIdByName(ROLES.LANDLORD);
-  if (!role) {
-    throw new AppError('ROLE_NOT_FOUND', 'Vai trò LANDLORD chưa được cấu hình.', 500);
+  // 2. Đã duyệt thì không cần nộp lại.
+  if (user.approval_status === 'APPROVED') {
+    throw new AppError('ALREADY_APPROVED', 'Hồ sơ chủ nhà đã được duyệt, không cần nộp lại CCCD.', 409);
   }
 
-  // 3. Hash mật khẩu + sinh user_id ở app (để biết thư mục ảnh trước khi ghi file).
-  const passwordHash = await hashPassword(password);
-  const landlordId = crypto.randomUUID();
-
-  // 4. Ghi 2 ảnh CCCD ra storage TRƯỚC transaction DB.
+  // 3. Ghi 2 ảnh ra storage (ghi đè nếu nộp lại) rồi cập nhật DB.
   const { frontKey, backKey } = await idCardStorage.save({
-    landlordId,
+    landlordId: userId,
     frontFile: idCardFront,
     backFile: idCardBack,
   });
 
-  // 5. Tạo user/landlord/account_security trong transaction; rollback file nếu lỗi.
-  let user;
-  try {
-    user = await authRepository.createUserWithRole({
-      userId: landlordId,
-      fullName,
-      username,
-      email,
-      phoneNumber,
-      passwordHash,
-      roleId: role.role_id,
-      roleName: ROLES.LANDLORD,
-      gender,
-      dateOfBirth,
-      idCardFrontUrl: frontKey,
-      idCardBackUrl: backKey,
-    });
-  } catch (err) {
-    await idCardStorage.remove(landlordId).catch(() => {});
-    throw err;
-  }
-
-  // 6. Sau commit: sinh OTP, lưu Redis, gửi email (như đăng ký thường).
-  const code = otpStore.generateOtp();
-  await otpStore.setOtp({ purpose: otpStore.OTP_PURPOSE.REGISTRATION, identifier: email, code });
-  await sendOtpEmail({ to: email, code, purpose: otpStore.OTP_PURPOSE.REGISTRATION });
-
-  // Bổ sung role + approval_status để response phản ánh đúng (repo không trả 2 field này).
-  user.role_name = ROLES.LANDLORD;
-  user.approval_status = 'PENDING';
+  // Nộp lại sau khi bị từ chối → đưa về PENDING để duyệt lại.
+  const resetToPending = user.approval_status === 'REJECTED';
+  await authRepository.updateLandlordIdCards(userId, { frontKey, backKey, resetToPending });
 
   return {
-    user: toRegisterResponse(user),
-    otpExpiresInSeconds: env.otp.ttlSeconds,
+    approvalStatus: resetToPending ? 'PENDING' : user.approval_status,
+    idCardSubmitted: true,
   };
 }
 
@@ -756,7 +727,7 @@ async function changePassword(userId, { currentPassword, newPassword }) {
 
 module.exports = {
   register,
-  registerLandlord,
+  submitLandlordIdCards,
   verifyOtp,
   resendOtp,
   forgotPassword,

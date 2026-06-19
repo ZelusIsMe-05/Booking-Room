@@ -6,7 +6,7 @@ const express = require('express');
 const env = require('./config/env');
 const authService = require('./services/auth/auth.service');
 
-const PORT = 5000;
+const PORT = 3000;
 const BASE = `http://localhost:${PORT}`;
 const redirectUri = (p) => `${BASE}/oauth/${p}/callback`;
 

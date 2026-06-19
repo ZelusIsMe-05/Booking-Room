@@ -105,8 +105,9 @@ async function createUserWithRole({
     if (roleName === 'LANDLORD') {
       await trx('landlords').insert({
         landlord_id: user.user_id,
-        id_card_front_url: idCardFrontUrl || '',
-        id_card_back_url: idCardBackUrl || '',
+        // NULL = chưa nộp CCCD (để assertVerifiedHost/duyệt phản ánh đúng); ảnh nộp ở API riêng.
+        id_card_front_url: idCardFrontUrl || null,
+        id_card_back_url: idCardBackUrl || null,
         approval_status: 'PENDING',
       });
     } else {
@@ -116,6 +117,26 @@ async function createUserWithRole({
 
     return user;
   });
+}
+
+/**
+ * Cập nhật 2 ảnh CCCD của landlord (key lưu DB). Khi `resetToPending` (nộp lại sau khi
+ * bị từ chối) thì đưa approval_status về PENDING + xóa lý do từ chối để Admin duyệt lại.
+ *
+ * @param {string} landlordId
+ * @param {{ frontKey: string, backKey: string, resetToPending?: boolean }} params
+ * @returns {Promise<number>} số bản ghi cập nhật
+ */
+function updateLandlordIdCards(landlordId, { frontKey, backKey, resetToPending = false }) {
+  const update = {
+    id_card_front_url: frontKey,
+    id_card_back_url: backKey,
+  };
+  if (resetToPending) {
+    update.approval_status = 'PENDING';
+    update.rejection_reason = null;
+  }
+  return db('landlords').where({ landlord_id: landlordId }).update(update);
 }
 
 /**
@@ -488,6 +509,7 @@ module.exports = {
   getRoleIdByName,
   findUserByEmailPhoneUsername,
   createUserWithRole,
+  updateLandlordIdCards,
   findInactiveUserByEmail,
   findUserByEmail,
   activateUser,

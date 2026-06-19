@@ -59,25 +59,17 @@ const baseRegisterFields = {
 const passwordsMatch = (d) => d.password === d.confirmPassword;
 const passwordsMatchError = { message: 'Xác nhận mật khẩu không khớp.', path: ['confirmPassword'] };
 
-// Tách theo vai trò để sau này landlord có thể thêm field riêng (số CCCD, ngày cấp…)
-// mà không ảnh hưởng tenant. `role` được giữ ở body và cố định bằng literal.
-// Ảnh CCCD (id_card_front/back) là file ở req.files, không validate ở Zod (xem controller).
-const registerTenantSchema = z
+// Một schema chung cho cả TENANT lẫn LANDLORD: chỉ khác `role`. Đăng ký nay chỉ nhận
+// thông tin (JSON); landlord nộp ảnh CCCD ở API riêng (POST /auth/landlord/id-cards),
+// nên không còn validate file ở bước này.
+const registerSchema = z
   .object({
     ...baseRegisterFields,
-    role: z.literal('TENANT').default('TENANT'),
+    role: z.enum(['TENANT', 'LANDLORD'], {
+      errorMap: () => ({ message: 'Vai trò đăng ký không hợp lệ.' }),
+    }).default('TENANT'),
   })
   .refine(passwordsMatch, passwordsMatchError);
-
-const registerLandlordSchema = z
-  .object({
-    ...baseRegisterFields,
-    role: z.literal('LANDLORD'),
-  })
-  .refine(passwordsMatch, passwordsMatchError);
-
-// Giữ alias cho tương thích (mặc định nhánh TENANT).
-const registerSchema = registerTenantSchema;
 
 // PUT /api/auth/me (Cập nhật hồ sơ)
 const updateProfileSchema = z.object({
@@ -223,8 +215,6 @@ function toRegisterResponse(user) {
 
 module.exports = {
   registerSchema,
-  registerTenantSchema,
-  registerLandlordSchema,
   verifyOtpSchema,
   resendOtpSchema,
   forgotPasswordSchema,
