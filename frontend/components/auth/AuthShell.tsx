@@ -7,8 +7,8 @@ type AuthShellProps = {
 
 export default function AuthShell({ children }: AuthShellProps) {
   return (
-    <main className="min-h-screen bg-booking-surface p-4 text-booking-text sm:p-6">
-      <div className="mx-auto grid min-h-[calc(100vh-48px)] max-w-7xl gap-8 lg:grid-cols-2 lg:items-center">
+    <main className="min-h-screen bg-booking-surface p-4 text-booking-text sm:p-6" suppressHydrationWarning>
+      <div className="mx-auto grid min-h-[calc(100vh-48px)] max-w-7xl gap-8 lg:grid-cols-2 lg:items-center" suppressHydrationWarning>
         <section className="relative hidden h-[calc(100vh-48px)] min-h-[720px] overflow-hidden rounded-xl shadow-2xl lg:block">
           <Image
             src="/images/booking/auth-brand.png"
