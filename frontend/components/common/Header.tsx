@@ -12,6 +12,8 @@ import { useAuth } from '@/context/AuthContext';
 import UserProfileModal from './UserProfileModal';
 import ChangePasswordModal from './ChangePasswordModal';
 import MyDepositsModal from './MyDepositsModal';
+import SupportTicketModal from './SupportTicketModal';
+import ViolationReportModal from './ViolationReportModal';
 
 export default function Header() {
   const { user, logout } = useAuth();
@@ -21,6 +23,8 @@ export default function Header() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isDepositsOpen, setIsDepositsOpen] = useState(false);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
+  const [isViolationOpen, setIsViolationOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Đóng dropdown khi click ra ngoài
@@ -62,13 +66,7 @@ export default function Header() {
 
       {/* 2. Menu Navigation & Auth Options */}
       <div className="flex items-center gap-4 lg:gap-6 text-sm font-medium">
-        <Link href="/rooms" className="text-[#0052CC] border-b-2 border-[#0052CC] pb-1 px-1 hidden sm:block">
-          Thuê phòng
-        </Link>
-        <Link href="#" className="text-[#6B778C] hover:text-[#172B4D] transition-colors hidden sm:block">
-          Trợ giúp
-        </Link>
-        <button className="text-[#6B778C] hover:text-[#172B4D] transition-colors p-1.5 rounded-full hover:bg-gray-50">
+        <button className="text-[#6B778C] hover:text-[#172B4D] transition-colors p-1.5 rounded-full hover:bg-gray-50" title="Chọn ngôn ngữ">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9h18" />
           </svg>
@@ -135,18 +133,46 @@ export default function Header() {
                   </button>
 
                   {user.role === 'TENANT' && (
-                    <button
-                      onClick={() => {
-                        setIsDropdownOpen(false);
-                        setIsDepositsOpen(true);
-                      }}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#172B4D] hover:bg-[#F4F5F7] transition-colors text-left font-medium"
-                    >
-                      <svg className="w-4 h-4 text-[#6B778C]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                      <span>Các đơn đặt cọc</span>
-                    </button>
+                    <>
+                      <button
+                        onClick={() => {
+                          setIsDropdownOpen(false);
+                          setIsDepositsOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#172B4D] hover:bg-[#F4F5F7] transition-colors text-left font-medium"
+                      >
+                        <svg className="w-4 h-4 text-[#6B778C]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        <span>Đơn đặt cọc</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setIsDropdownOpen(false);
+                          setIsSupportOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#172B4D] hover:bg-[#F4F5F7] transition-colors text-left font-medium"
+                      >
+                        <svg className="w-4 h-4 text-[#6B778C]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        <span>Đơn hỗ trợ</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setIsDropdownOpen(false);
+                          setIsViolationOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#172B4D] hover:bg-[#F4F5F7] transition-colors text-left font-medium"
+                      >
+                        <svg className="w-4 h-4 text-[#6B778C]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span>Đơn khiếu nại</span>
+                      </button>
+                    </>
                   )}
 
                   <Link
@@ -201,6 +227,8 @@ export default function Header() {
       <UserProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
       <ChangePasswordModal isOpen={isChangePasswordOpen} onClose={() => setIsChangePasswordOpen(false)} />
       <MyDepositsModal isOpen={isDepositsOpen} onClose={() => setIsDepositsOpen(false)} />
+      <SupportTicketModal isOpen={isSupportOpen} onClose={() => setIsSupportOpen(false)} />
+      <ViolationReportModal isOpen={isViolationOpen} onClose={() => setIsViolationOpen(false)} />
     </header>
   );
 }

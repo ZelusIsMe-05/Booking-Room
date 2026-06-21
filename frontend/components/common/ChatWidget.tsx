@@ -8,8 +8,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
+
 interface Message {
-  id: number;
+  id: string;
+  sender: 'user' | 'ai';
   text: string;
   time: string; // Thời gian gửi hiển thị dạng HH:mm
 }
@@ -25,38 +28,138 @@ export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   // Trạng thái hiển thị bong bóng câu chào của AI ở ngoài
   const [showBubble, setShowBubble] = useState(true);
-  // Danh sách tin nhắn người dùng đã gửi
+  // Danh sách tin nhắn
   const [messages, setMessages] = useState<Message[]>([]);
+  // Trạng thái AI đang trả lời
+  const [isTyping, setIsTyping] = useState(false);
   // Nội dung ô nhập liệu
   const [inputText, setInputText] = useState('');
   // Ref để cuộn xuống tin nhắn mới nhất
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Tự động cuộn xuống cuối khi có tin nhắn mới
+  // Tự động điều chỉnh chiều cao của textarea khi gõ tin nhắn
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(120, textareaRef.current.scrollHeight)}px`;
+    }
+  }, [inputText]);
+
+  // Khôi phục từ sessionStorage khi component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem('booking_chat_history');
+      if (stored) {
+        try {
+          setMessages(JSON.parse(stored));
+          setShowBubble(false); // Ẩn bubble chào nếu đã có lịch sử chat trước đó
+        } catch (e) {
+          console.error('Error parsing stored chat history:', e);
+          initializeDefaultWelcome();
+        }
+      } else {
+        initializeDefaultWelcome();
+      }
+    }
+  }, []);
+
+  const initializeDefaultWelcome = () => {
+    setMessages([
+      {
+        id: 'default-welcome',
+        sender: 'ai',
+        text: 'Xin chào! Tôi là trợ lý ảo AI của BookingRoom. Tôi có thể giúp gì cho bạn trong việc tìm kiếm phòng trọ?',
+        time: getCurrentTime(),
+      },
+    ]);
+  };
+
+  // Đồng bộ tin nhắn với sessionStorage
+  const saveMessages = (newMessages: Message[]) => {
+    setMessages(newMessages);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('booking_chat_history', JSON.stringify(newMessages));
+    }
+  };
+
+  // Tự động cuộn xuống cuối khi có tin nhắn mới hoặc đang gõ
   useEffect(() => {
     if (isOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isOpen]);
+  }, [messages, isOpen, isTyping]);
 
   // Xử lý gửi tin nhắn
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = inputText.trim();
-    if (!trimmed) return; // Không gửi nếu ô rỗng
+    if (!trimmed || isTyping) return; // Không gửi nếu ô rỗng hoặc đang chờ AI trả lời
 
-    // Thêm tin nhắn mới vào danh sách
-    const newMessage: Message = {
-      id: Date.now(),
+    // 1. Thêm tin nhắn user vào danh sách
+    const userMsg: Message = {
+      id: `user-${Date.now()}`,
+      sender: 'user',
       text: trimmed,
       time: getCurrentTime(),
     };
-    setMessages((prev) => [...prev, newMessage]);
+    const updatedMessages = [...messages, userMsg];
+    saveMessages(updatedMessages);
     setInputText(''); // Xóa ô nhập sau khi gửi
+    setIsTyping(true);
+
+    try {
+      // 2. Định dạng lịch sử cuộc hội thoại gửi lên AI (không bao gồm tin chào mặc định)
+      const historyContext = updatedMessages
+        .filter((msg) => msg.id !== 'default-welcome')
+        .map((msg) => ({
+          role: msg.sender === 'user' ? 'user' : 'model',
+          parts: [{ text: msg.text }],
+        }));
+
+      // 3. Gọi API backend tư vấn phòng trọ
+      const res = await fetch(`${API_BASE}/ai/room-recommendations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: trimmed,
+          history: historyContext,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Lỗi khi kết nối với AI');
+
+      // 4. Thêm tin nhắn phản hồi của AI
+      const aiReply = json.data?.reply || 'Xin lỗi, tôi gặp lỗi khi xử lý câu hỏi này.';
+      const aiMsg: Message = {
+        id: `ai-${Date.now()}`,
+        sender: 'ai',
+        text: aiReply,
+        time: getCurrentTime(),
+      };
+      saveMessages([...updatedMessages, aiMsg]);
+    } catch (err: any) {
+      console.error('AI chat error:', err);
+      const errorMsg: Message = {
+        id: `error-${Date.now()}`,
+        sender: 'ai',
+        text: 'Xin lỗi, hệ thống AI đang gặp gián đoạn kỹ thuật. Vui lòng thử lại sau giây lát!',
+        time: getCurrentTime(),
+      };
+      saveMessages([...updatedMessages, errorMsg]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
-  // Gửi bằng phím Enter
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') handleSend();
+  // Gửi bằng phím Enter (không kèm Shift)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   return (
@@ -65,8 +168,8 @@ export default function ChatWidget() {
           CỬA SỔ CHAT - Hiện ra khi isOpen = true
           ---------------------------------------------------------------- */}
       {isOpen && (
-        <div className="fixed bottom-6 right-24 z-50 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden"
-          style={{ height: '420px' }}>
+        <div className="fixed bottom-6 right-24 z-50 w-[400px] bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-200"
+          style={{ height: '520px' }}>
 
           {/* Header */}
           <div className="bg-[#0052CC] px-4 py-3 flex items-center justify-between shrink-0">
@@ -94,47 +197,59 @@ export default function ChatWidget() {
 
           {/* Vùng hiển thị tin nhắn */}
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-[#F8F9FF]">
-            {/* Tin nhắn chào mặc định */}
-            <div className="flex justify-start">
-              <div className="max-w-[75%]">
-                <div className="bg-white text-[#172B4D] text-sm px-3 py-2 rounded-2xl rounded-tl-sm shadow-sm border border-gray-100">
-                  Xin chào! Tôi có thể giúp bạn tìm phòng trọ phù hợp. Bạn muốn thuê phòng ở khu vực nào?
-                </div>
-                <p className="text-[10px] text-gray-400 mt-1 ml-1">Vừa xong</p>
-              </div>
-            </div>
-
-            {/* Render các tin nhắn người dùng đã gửi */}
+            {/* Render các tin nhắn */}
             {messages.map((msg) => (
-              <div key={msg.id} className="flex justify-end">
-                <div className="max-w-[75%]">
-                  <div className="bg-[#0052CC] text-white text-sm px-3 py-2 rounded-2xl rounded-tr-sm shadow-sm">
+              <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className="max-w-[80%]">
+                  <div className={`text-sm px-3 py-2 rounded-2xl shadow-sm whitespace-pre-wrap break-words leading-relaxed ${
+                    msg.sender === 'user'
+                      ? 'bg-[#0052CC] text-white rounded-tr-sm'
+                      : 'bg-white text-[#172B4D] rounded-tl-sm border border-gray-150'
+                  }`}>
                     {msg.text}
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-1 text-right mr-1">{msg.time}</p>
+                  <p className={`text-[10px] text-gray-400 mt-1 ${msg.sender === 'user' ? 'text-right mr-1' : 'ml-1'}`}>
+                    {msg.time}
+                  </p>
                 </div>
               </div>
             ))}
+
+            {/* Hoạt ảnh đang gõ tin nhắn */}
+            {isTyping && (
+              <div className="flex justify-start animate-in fade-in duration-200">
+                <div className="max-w-[75%]">
+                  <div className="bg-white text-gray-500 text-sm px-3 py-2 rounded-2xl rounded-tl-sm shadow-sm border border-gray-150 flex items-center gap-1.5 h-[34px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0052CC]/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0052CC]/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0052CC]/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1 ml-1">AI đang soạn câu trả lời...</p>
+                </div>
+              </div>
+            )}
 
             {/* Phần tử ẩn để cuộn xuống cuối */}
             <div ref={messagesEndRef} />
           </div>
 
           {/* Ô nhập tin nhắn */}
-          <div className="px-3 py-3 bg-white border-t border-gray-100 flex items-center gap-2 shrink-0">
-            <input
-              type="text"
+          <div className="px-3 py-3 bg-white border-t border-gray-100 flex items-end gap-2 shrink-0">
+            <textarea
+              ref={textareaRef}
+              rows={1}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Nhập tin nhắn..."
-              className="flex-1 bg-[#F4F5F7] text-sm text-[#172B4D] placeholder-gray-400 px-3 py-2 rounded-full focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#0052CC]/30 transition-all"
+              disabled={isTyping}
+              placeholder={isTyping ? 'AI đang soạn câu trả lời...' : 'Nhập tin nhắn...'}
+              className="flex-1 bg-[#F4F5F7] text-sm text-[#172B4D] placeholder-gray-400 px-4 py-2.5 rounded-2xl focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#0052CC]/30 transition-all disabled:opacity-60 resize-none max-h-[120px] overflow-y-auto leading-relaxed"
             />
             {/* Nút gửi (mũi tên) */}
             <button
               onClick={handleSend}
-              disabled={!inputText.trim()}
-              className="w-9 h-9 bg-[#0052CC] hover:bg-[#0043A8] disabled:bg-gray-200 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center transition-colors shrink-0 shadow-sm"
+              disabled={!inputText.trim() || isTyping}
+              className="w-10 h-10 bg-[#0052CC] hover:bg-[#0043A8] disabled:bg-gray-200 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center transition-colors shrink-0 shadow-sm mb-0.5"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 12h14M12 5l7 7-7 7" />

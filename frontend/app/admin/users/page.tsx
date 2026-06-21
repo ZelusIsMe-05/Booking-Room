@@ -10,6 +10,7 @@ import { exportToCsv } from '@/utils/exportCsv';
 import { Users, UserCheck, UserX, UserMinus, Search, Download, Eye, Lock, Unlock, Filter } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import UserDetailModal from '@/components/admin/UserDetailModal';
+import Avatar from '@/components/admin/Avatar';
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -29,10 +30,15 @@ export default function UserManagementPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
-      setPage(1);
+      setPage(1); // reset page on search change
     }, 500);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // Reset page when filterStatus changes (separate from search debounce)
+  useEffect(() => {
+    setPage(1);
+  }, [filterStatus]);
 
   const fetchStats = async () => {
     try {
@@ -55,8 +61,8 @@ export default function UserManagementPage() {
       const usersRes = await adminService.getUsers({ 
         page, 
         limit, 
-        search: debouncedSearch,
-        status: filterStatus === 'ALL' ? undefined : filterStatus 
+        search: debouncedSearch || undefined,
+        status: filterStatus !== 'ALL' ? filterStatus : undefined,
       });
       setUsers(usersRes.items);
       setPagination({ total: usersRes.pagination?.total || 0, totalPages: usersRes.pagination?.totalPages || 1 });
@@ -70,10 +76,8 @@ export default function UserManagementPage() {
     }
   };
 
-  // Reset page when filterStatus changes
-  useEffect(() => {
-    setPage(1);
-  }, [filterStatus]);
+
+
 
   useEffect(() => {
     fetchStats();
@@ -120,12 +124,6 @@ export default function UserManagementPage() {
       <AdminHeader
         title="Quản lý người dùng"
         description="Kiểm tra, quản lý và xử lý trạng thái tài khoản trên hệ thống."
-        action={
-          <button onClick={handleExport} className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm">
-            <Download size={18} />
-            <span>Xuất danh sách</span>
-          </button>
-        }
       />
 
       <div className="flex-1 p-8 overflow-y-auto">
@@ -202,6 +200,11 @@ export default function UserManagementPage() {
                     </select>
                     <Filter size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   </div>
+                  {/* Nút Xuất danh sách chuyển xuống đây */}
+                  <button onClick={handleExport} className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm ml-2">
+                    <Download size={18} className="text-slate-500" />
+                    <span>Xuất danh sách</span>
+                  </button>
                 </div>
               </div>
               {/* Table */}
@@ -237,13 +240,12 @@ export default function UserManagementPage() {
                         <tr key={user.userId} className="hover:bg-slate-50 transition-colors">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                                {user.avatarUrl ? (
-                                  <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
-                                ) : (
-                                  <span className="font-semibold text-slate-500">{user.fullName.charAt(0).toUpperCase()}</span>
-                                )}
-                              </div>
+                              <Avatar 
+                                src={user.avatarUrl} 
+                                alt={user.fullName} 
+                                fallbackText={user.fullName} 
+                                className="w-10 h-10"
+                              />
                               <div>
                                 <p className="font-semibold text-slate-900">{user.fullName}</p>
                                 <p className="text-xs text-slate-500">@{user.username || user.userId.substring(0, 8)}</p>
@@ -265,9 +267,10 @@ export default function UserManagementPage() {
                           <td className="px-6 py-4">
                             <StatusBadge
                               status={
-                                user.status === 'ACTIVE' ? 'Hoạt động' :
-                                  user.status === 'BANNED' ? 'Bị khóa' :
-                                    user.status === 'INACTIVE' ? 'Chờ xác thực' : 'Bị khóa'
+                                user.status === 'ACTIVE'
+                                  ? (user.approvalStatus === 'PENDING' ? 'Chờ xác thực' : 'Hoạt động')
+                                  : user.status === 'BANNED' ? 'Bị khóa'
+                                  : user.status === 'INACTIVE' ? 'Chưa xác thực OTP' : 'Bị khóa'
                               }
                             />
                           </td>
@@ -280,7 +283,7 @@ export default function UserManagementPage() {
                               >
                                 <Eye size={16} />
                               </button>
-                              {user.role !== 'ADMIN' && (
+                              {user.role !== 'ADMIN' && user.approvalStatus !== 'PENDING' && (
                                 <button 
                                   onClick={() => handleToggleLock(user.userId, user.status)}
                                   disabled={actionLoading === user.userId}

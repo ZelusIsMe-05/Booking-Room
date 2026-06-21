@@ -108,6 +108,16 @@ export const adminService = {
     return response.data;
   },
 
+  approveLandlord: async (userId: string): Promise<any> => {
+    const response = await apiClient.patch<{ data: any }>(`/admin/landlords/${userId}/approve`);
+    return response.data;
+  },
+
+  rejectLandlord: async (userId: string, reason: string): Promise<any> => {
+    const response = await apiClient.patch<{ data: any }>(`/admin/landlords/${userId}/reject`, { reason });
+    return response.data;
+  },
+
   getTransactions: async (params?: Record<string, any>): Promise<TransactionListResponse> => {
     const queryString = buildQueryString(params);
     // The backend returns { data: { transactions: [...], pagination: {...} } }
@@ -125,12 +135,12 @@ export const adminService = {
   },
 
   approveRoom: async (roomId: string): Promise<any> => {
-    const response = await apiClient.post<{ data: any }>(`/admin/rooms/${roomId}/approve`);
+    const response = await apiClient.patch<{ data: any }>(`/admin/rooms/${roomId}/approve`);
     return response.data;
   },
 
   rejectRoom: async (roomId: string, reason: string): Promise<any> => {
-    const response = await apiClient.post<{ data: any }>(`/admin/rooms/${roomId}/reject`, { reason });
+    const response = await apiClient.patch<{ data: any }>(`/admin/rooms/${roomId}/reject`, { reason });
     return response.data;
   },
 

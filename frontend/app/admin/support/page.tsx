@@ -75,9 +75,9 @@ export default function SupportPage() {
 
   const getStatusText = (status: string) => {
     switch(status) {
-      case 'OPEN': return 'Mở';
+      case 'OPEN': return 'Chờ xử lý';
       case 'IN_PROGRESS': return 'Đang xử lý';
-      case 'CLOSED': return 'Đã đóng';
+      case 'CLOSED': return 'Đã giải quyết';
       default: return status;
     }
   };
@@ -137,7 +137,7 @@ export default function SupportPage() {
                 onClick={() => setFilterStatus('OPEN')}
                 className={`px-4 py-1.5 font-medium rounded-md text-sm transition-colors ${filterStatus === 'OPEN' ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-900'}`}
               >
-                Đang mở
+                Chờ xử lý
               </button>
               <button 
                 onClick={() => setFilterStatus('IN_PROGRESS')}
@@ -244,7 +244,7 @@ export default function SupportPage() {
                             className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors ${ticket.status === 'OPEN' ? 'bg-orange-50 text-orange-700 border border-orange-200' : 'hover:bg-slate-50 text-slate-600 border border-transparent hover:border-slate-200'}`}
                           >
                             <div className="flex justify-between items-center">
-                              <span>Mở</span>
+                              <span>Chờ xử lý</span>
                               {ticket.status === 'OPEN' && <span className="w-2 h-2 rounded-full bg-orange-500"></span>}
                             </div>
                           </button>
@@ -266,7 +266,7 @@ export default function SupportPage() {
                             className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors ${ticket.status === 'CLOSED' ? 'bg-slate-100 text-slate-700 border border-slate-300' : 'hover:bg-slate-50 text-slate-600 border border-transparent hover:border-slate-200'}`}
                           >
                             <div className="flex justify-between items-center">
-                              <span>Đã đóng</span>
+                              <span>Đã giải quyết</span>
                               {ticket.status === 'CLOSED' && <span className="w-2 h-2 rounded-full bg-slate-500"></span>}
                             </div>
                           </button>

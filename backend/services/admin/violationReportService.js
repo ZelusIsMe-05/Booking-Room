@@ -162,21 +162,48 @@ async function updateReportStatus({ reportId, status, actor }) {
     userAgent: actor.userAgent,
   });
 
-  // Notify the reporting tenant
-  const notificationRepository = require('../../repositories/guest/notificationRepository');
-  const statusLabels = {
-    PENDING: 'Chờ xử lý',
-    PROCESSING: 'Đang xử lý',
-    RESOLVED: 'Đã giải quyết',
-    DISMISSED: 'Đã từ chối',
-  };
-  await notificationRepository.insertNotification({
-    user_id: existing.tenant_id,
-    title: 'Cập nhật khiếu nại vi phạm',
-    content: `Khiếu nại của bạn (Mã: ${reportId.split('-')[0]}) đã được chuyển sang trạng thái: ${statusLabels[upperStatus] || upperStatus}.`,
-    notification_type: 'SYSTEM',
-    status: 'UNREAD',
-  });
+  // Only notify when the report is completely resolved or dismissed
+  if (upperStatus === 'RESOLVED' || upperStatus === 'DISMISSED') {
+    const notificationRepository = require('../../repositories/guest/notificationRepository');
+    
+    // 1. Notify the reporting tenant
+    let tenantTitle = 'Kết quả giải quyết khiếu nại';
+    let tenantContent = `Khiếu nại của bạn (Mã: ${reportId.split('-')[0]}) đã được xử lý. `;
+    if (upperStatus === 'RESOLVED') {
+      tenantContent += 'Cảm ơn bạn đã báo cáo. Chúng tôi đã xác minh vi phạm của chủ phòng và tiến hành xử lý.';
+    } else {
+      tenantContent += 'Sau khi xác minh, chúng tôi không tìm thấy đủ bằng chứng vi phạm từ phía chủ phòng nên khiếu nại đã bị từ chối.';
+    }
+
+    await notificationRepository.insertNotification({
+      user_id: existing.tenant_id,
+      title: tenantTitle,
+      content: tenantContent,
+      notification_type: 'VIOLATION',
+      status: 'UNREAD',
+    });
+
+    // 2. Notify the reported landlord ONLY IF resolved (has guilt)
+    if (existing.landlord_id && upperStatus === 'RESOLVED') {
+      let landlordTitle = '⚠️ Cảnh báo vi phạm chính sách';
+      let landlordContent = '';
+      const shortId = reportId.split('-')[0];
+
+      if (existing.room_id) {
+         landlordContent = `CẢNH BÁO: Phòng của bạn đã bị tố cáo vi phạm (Mã: ${shortId}) với lý do: "${existing.reason}". Hệ thống xác minh là đúng sự thật. Vui lòng chấn chỉnh lại dịch vụ để tránh bị khóa tài khoản.`;
+      } else {
+         landlordContent = `CẢNH BÁO: Bạn đã bị khách hàng tố cáo về hành vi: "${existing.reason}" (Mã: ${shortId}). Hệ thống xác minh là đúng sự thật. Vui lòng chấn chỉnh lại hành vi để tránh bị khóa tài khoản.`;
+      }
+
+      await notificationRepository.insertNotification({
+        user_id: existing.landlord_id,
+        title: landlordTitle,
+        content: landlordContent,
+        notification_type: 'VIOLATION',
+        status: 'UNREAD',
+      });
+    }
+  }
 
   return mapReportRow(updated);
 }

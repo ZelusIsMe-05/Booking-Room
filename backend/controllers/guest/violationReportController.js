@@ -6,13 +6,30 @@ const { sendSuccess } = require('../../utils/responseHelper');
  */
 
 /**
+ * GET /api/violation-reports/eligible-targets
+ * Get eligible rooms and hosts that the user is allowed to complain about.
+ */
+exports.getEligibleTargets = async (req, res, next) => {
+  try {
+    const { userId } = req.user;
+    const result = await violationReportService.getEligibleTargets(userId);
+    return sendSuccess(res, {
+      message: 'Lấy danh sách đối tượng đủ điều kiện khiếu nại thành công.',
+      data: result
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * POST /api/violation-reports
  * Create a new report.
  */
 exports.create = async (req, res, next) => {
   try {
     const { userId } = req.user;
-    const report = await violationReportService.submitReport(userId, req.body);
+    const report = await violationReportService.submitReport(userId, req.body, req.file);
 
     return sendSuccess(res, {
       message: 'Gửi báo cáo vi phạm thành công.',

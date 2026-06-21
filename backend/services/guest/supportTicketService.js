@@ -1,11 +1,12 @@
 const supportTicketRepository = require('../../repositories/guest/supportTicketRepository');
 const AppError = require('../../utils/AppError');
+const { uploadFile, RESOURCE_TYPES } = require('../../utils/s3Helper');
 
 /**
  * Submit a new support ticket.
  */
-async function submitTicket(userId, body) {
-  const { category, title, detailed_description, evidence_image_url } = body;
+async function submitTicket(userId, body, file) {
+  const { category, title, detailed_description } = body;
 
   if (!category || !title || !detailed_description) {
     throw new AppError('BAD_REQUEST', 'Vui lòng cung cấp đầy đủ: category, title, và detailed_description.', 400);
@@ -16,12 +17,19 @@ async function submitTicket(userId, body) {
     throw new AppError('BAD_REQUEST', 'Danh mục (category) không hợp lệ.', 400);
   }
 
+  let evidence_image_url = null;
+  if (file) {
+    evidence_image_url = await uploadFile(file, RESOURCE_TYPES.REPORT, userId);
+  } else if (body.evidence_image_url) {
+    evidence_image_url = body.evidence_image_url;
+  }
+
   const ticket = await supportTicketRepository.createTicket({
     user_id: userId,
     category,
     title,
     detailed_description,
-    evidence_image_url: evidence_image_url || null,
+    evidence_image_url,
     status: 'OPEN'
   });
 

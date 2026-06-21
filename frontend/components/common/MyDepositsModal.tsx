@@ -151,7 +151,7 @@ export default function MyDepositsModal({ isOpen, onClose }: MyDepositsModalProp
         {/* Header */}
         <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Các đơn đặt cọc của tôi</h2>
+            <h2 className="text-2xl font-bold text-gray-900">Đơn đặt cọc</h2>
             <p className="text-xs text-gray-500 mt-1">Lịch sử đặt cọc của bạn và trạng thái thanh toán</p>
           </div>
           <div className="flex items-center gap-4">

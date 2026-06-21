@@ -150,12 +150,12 @@ async function updateTicketStatus({ ticketId, status, actor }) {
 
   // Notify the user
   const notificationRepository = require('../../repositories/guest/notificationRepository');
-  const statusLabels = { OPEN: 'Mở lại', IN_PROGRESS: 'Đang xử lý', CLOSED: 'Đã đóng' };
+  const statusLabels = { OPEN: 'Chờ xử lý', IN_PROGRESS: 'Đang xử lý', CLOSED: 'Đã giải quyết' };
   await notificationRepository.insertNotification({
     user_id: existing.user_id,
     title: 'Cập nhật yêu cầu hỗ trợ',
     content: `Yêu cầu hỗ trợ của bạn (Mã: ${ticketId.split('-')[0]}) đã được chuyển sang trạng thái: ${statusLabels[upperStatus] || upperStatus}.`,
-    notification_type: 'SYSTEM',
+    notification_type: 'SUPPORT',
     status: 'UNREAD',
   });
 

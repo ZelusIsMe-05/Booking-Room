@@ -24,7 +24,7 @@ function normalizeRole(role) {
 }
 
 function toPublicUser(row) {
-  return {
+  const publicUser = {
     userId: row.user_id,
     fullName: row.full_name,
     email: row.email,
@@ -37,6 +37,12 @@ function toPublicUser(row) {
     status: row.status,
     role: row.role_name,
   };
+
+  if (row.approval_status) {
+    publicUser.approvalStatus = row.approval_status;
+  }
+
+  return publicUser;
 }
 
 function toUserDetail(row) {
@@ -46,6 +52,8 @@ function toUserDetail(row) {
       exists: Boolean(row.landlord_id),
       idCardFrontUrl: row.id_card_front_url || null,
       idCardBackUrl: row.id_card_back_url || null,
+      approvalStatus: row.approval_status || null,
+      rejectionReason: row.rejection_reason || null,
     },
     tenant: {
       exists: Boolean(row.tenant_id),
@@ -82,6 +90,8 @@ function selectUserFields(query) {
     'landlords.landlord_id',
     'landlords.id_card_front_url',
     'landlords.id_card_back_url',
+    'landlords.approval_status',
+    'landlords.rejection_reason',
     'tenants.tenant_id',
     'account_security.failed_login_attempts',
     'account_security.locked_until',
@@ -92,6 +102,8 @@ function selectUserFields(query) {
 function applyListFilters(query, filters) {
   if (filters.role) {
     query.where('roles.role_name', normalizeRole(filters.role));
+  } else {
+    query.where('roles.role_name', '!=', 'ADMIN');
   }
 
   if (filters.status) {

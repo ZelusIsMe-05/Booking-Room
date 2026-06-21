@@ -6,6 +6,7 @@ import StatusBadge from '@/components/admin/StatusBadge';
 import { adminService } from '@/services/adminService';
 import { getRoomFallbackImage } from '@/utils/imageFallback';
 import { Search, Filter, AlertCircle, AlertTriangle, ShieldCheck, XCircle, ChevronRight } from 'lucide-react';
+import RoomDetailModal from '@/components/admin/RoomDetailModal';
 
 const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
   if (typeof window !== 'undefined') {
@@ -24,6 +25,7 @@ export default function ComplaintsPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -134,6 +136,18 @@ export default function ComplaintsPage() {
               >
                 Đang xử lý
               </button>
+              <button
+                onClick={() => setFilterStatus('RESOLVED')}
+                className={`px-4 py-1.5 font-medium rounded-md text-sm transition-colors ${filterStatus === 'RESOLVED' ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-900'}`}
+              >
+                Đã giải quyết
+              </button>
+              <button
+                onClick={() => setFilterStatus('DISMISSED')}
+                className={`px-4 py-1.5 font-medium rounded-md text-sm transition-colors ${filterStatus === 'DISMISSED' ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-900'}`}
+              >
+                Bị bác bỏ
+              </button>
             </div>
           </div>
         </div>
@@ -180,7 +194,10 @@ export default function ComplaintsPage() {
                       </div>
 
                       {report.room && (
-                        <div className="flex items-center gap-3 mt-3 mb-2 p-2 bg-slate-50 border border-slate-100 rounded-lg w-fit">
+                        <div 
+                          className="flex items-center gap-3 mt-3 mb-2 p-2 bg-slate-50 border border-slate-100 rounded-lg w-fit cursor-pointer hover:bg-slate-100 transition-colors"
+                          onClick={() => setSelectedRoomId(report.room.roomId)}
+                        >
                           <div className="w-10 h-10 bg-slate-200 rounded flex-shrink-0 overflow-hidden border border-slate-200">
                             <img
                               src={getRoomFallbackImage(report.room.roomId || 'rp', report.room.coverImageUrl)}
@@ -189,7 +206,7 @@ export default function ComplaintsPage() {
                             />
                           </div>
                           <div>
-                            <p className="text-sm font-semibold text-slate-800 line-clamp-1">{report.room.title}</p>
+                            <p className="text-sm font-semibold text-booking-primary hover:text-booking-primary-dark line-clamp-1">{report.room.title}</p>
                             <p className="text-xs text-slate-500 line-clamp-1">{report.room.address}</p>
                           </div>
                         </div>
@@ -295,6 +312,18 @@ export default function ComplaintsPage() {
           </div>
         )}
       </div>
+      {/* Room Detail Modal for viewing room info without approve/reject actions */}
+      {selectedRoomId && (
+        <RoomDetailModal
+          roomId={selectedRoomId}
+          isOpen={!!selectedRoomId}
+          onClose={() => setSelectedRoomId(null)}
+          onApprove={() => {}}
+          onReject={() => {}}
+          actionLoading={null}
+          isPending={false}
+        />
+      )}
     </div>
   );
 }

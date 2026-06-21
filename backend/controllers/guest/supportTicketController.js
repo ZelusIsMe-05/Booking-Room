@@ -12,7 +12,7 @@ const { sendSuccess } = require('../../utils/responseHelper');
 exports.create = async (req, res, next) => {
   try {
     const { userId } = req.user;
-    const ticket = await supportTicketService.submitTicket(userId, req.body);
+    const ticket = await supportTicketService.submitTicket(userId, req.body, req.file);
 
     return sendSuccess(res, {
       message: 'Gửi yêu cầu hỗ trợ thành công.',

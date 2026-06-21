@@ -110,10 +110,41 @@ function extractS3KeyFromUrl(url) {
   return match ? match[1] : null;
 }
 
+/**
+ * Uploads a file buffer to S3 if credentials exist, otherwise saves locally
+ * @param {object} file Multer file object
+ * @param {string} type One of RESOURCE_TYPES
+ * @param {string} entityId The ID of the user, room, or report
+ * @returns {Promise<string>} Public URL or relative local path of the uploaded file
+ */
+async function uploadFile(file, type, entityId) {
+  if (!file) return null;
+  const accessKeyId = cleanEnvVar(process.env.AWS_ACCESS_KEY_ID);
+  const secretAccessKey = cleanEnvVar(process.env.AWS_SECRET_ACCESS_KEY);
+
+  if (accessKeyId && secretAccessKey) {
+    const s3Key = generateS3Key(type, entityId, file.originalname);
+    return await uploadToS3(file.buffer, s3Key, file.mimetype);
+  } else {
+    // Local fallback
+    const fs = require('fs');
+    const uploadsDir = path.join(__dirname, '..', 'uploads', type);
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const ext = path.extname(file.originalname) || '.jpg';
+    const filename = `${entityId}_${Date.now()}${ext}`;
+    const filePath = path.join(uploadsDir, filename);
+    fs.writeFileSync(filePath, file.buffer);
+    return `/uploads/${type}/${filename}`;
+  }
+}
+
 module.exports = {
   RESOURCE_TYPES,
   generateS3Key,
   uploadToS3,
   deleteFromS3,
   extractS3KeyFromUrl,
+  uploadFile,
 };

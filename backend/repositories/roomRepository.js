@@ -355,11 +355,11 @@ async function findByLandlord(landlordId, { page = 1, limit = 20, sortBy = 'crea
   return { items, total };
 }
 
-async function findPendingRooms({ page = 1, limit = 20, status } = {}, trx) {
+async function findPendingRooms({ page = 1, limit = 20, status, keyword } = {}, trx) {
   const conn = trx || db;
   const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
 
-  const rows = await conn('rooms as r')
+  const query = conn('rooms as r')
     .select(
       'r.room_id',
       'r.landlord_id',
@@ -395,7 +395,20 @@ async function findPendingRooms({ page = 1, limit = 20, status } = {}, trx) {
     .leftJoin('users as u', 'u.user_id', 'r.landlord_id')
     .leftJoin('room_images as ri', function () {
       this.on('ri.room_id', 'r.room_id').andOnVal('ri.is_cover', '=', true);
-    })
+    });
+
+  if (keyword) {
+    const kw = `%${keyword}%`;
+    query.where((builder) => {
+      builder
+        .whereILike('r.title', kw)
+        .orWhereILike('r.detailed_address', kw)
+        .orWhereILike('u.full_name', kw)
+        .orWhereILike('u.email', kw);
+    });
+  }
+
+  const rows = await query
     .orderBy('r.created_at', 'desc')
     .limit(limit)
     .offset(offset);
@@ -403,9 +416,9 @@ async function findPendingRooms({ page = 1, limit = 20, status } = {}, trx) {
   return rows;
 }
 
-async function countPendingRooms({ status } = {}, trx) {
+async function countPendingRooms({ status, keyword } = {}, trx) {
   const conn = trx || db;
-  const [result] = await conn('rooms as r')
+  const query = conn('rooms as r')
     .countDistinct({ total: 'r.room_id' })
     .innerJoin('room_approvals as ra', function () {
       this.on('r.room_id', 'ra.room_id');
@@ -414,7 +427,21 @@ async function countPendingRooms({ status } = {}, trx) {
       } else {
         this.andOnVal('ra.approval_status', '=', 'PENDING');
       }
+    })
+    .leftJoin('users as u', 'u.user_id', 'r.landlord_id');
+
+  if (keyword) {
+    const kw = `%${keyword}%`;
+    query.where((builder) => {
+      builder
+        .whereILike('r.title', kw)
+        .orWhereILike('r.detailed_address', kw)
+        .orWhereILike('u.full_name', kw)
+        .orWhereILike('u.email', kw);
     });
+  }
+
+  const [result] = await query;
   
   return Number(result.total) || 0;
 }

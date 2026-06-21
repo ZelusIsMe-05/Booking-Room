@@ -15,6 +15,7 @@ const db = require('../../config/db');
 function findUserByIdentifier(identifier) {
   return db('users')
     .join('roles', 'users.role_id', 'roles.role_id')
+    .leftJoin('landlords', 'users.user_id', 'landlords.landlord_id')
     .where('users.email', identifier)
     .orWhere('users.phone_number', identifier)
     .orWhere('users.username', identifier)
@@ -32,6 +33,7 @@ function findUserByIdentifier(identifier) {
       'users.status',
       'users.role_id',
       'roles.role_name',
+      'landlords.approval_status',
     )
     .first();
 }

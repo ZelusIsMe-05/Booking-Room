@@ -204,8 +204,9 @@ async function listAllTransactions(query) {
   const paymentMethod = query.payment_method
     ? String(query.payment_method).toUpperCase()
     : undefined;
+  const keyword = query.keyword ? String(query.keyword).trim() : undefined;
 
-  return transactionRepository.findAllTransactions({ status, paymentMethod, page, limit });
+  return transactionRepository.findAllTransactions({ status, paymentMethod, keyword, page, limit });
 }
 
 module.exports = {

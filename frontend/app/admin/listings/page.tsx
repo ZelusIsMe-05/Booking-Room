@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import AdminHeader from '@/components/admin/AdminHeader';
 import { adminService } from '@/services/adminService';
-import { Check, X, Building, Search, Filter, AlertCircle, CheckCircle } from 'lucide-react';
+import { Check, X, Building, Search, Filter, AlertCircle, CheckCircle, Eye } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatCurrency';
 import { getRoomFallbackImage } from '@/utils/imageFallback';
 import RoomDetailModal from '@/components/admin/RoomDetailModal';
@@ -21,6 +21,7 @@ export default function ListingApprovalPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null); // roomId
   const [rejectingRoomId, setRejectingRoomId] = useState<string | null>(null);
+  const [approvingRoomId, setApprovingRoomId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('PENDING');
   const [viewingRoomId, setViewingRoomId] = useState<string | null>(null);
@@ -46,7 +47,7 @@ export default function ListingApprovalPage() {
       const res = await adminService.getPendingRooms({
         page,
         limit,
-        search: debouncedSearch,
+        search: debouncedSearch || undefined,
         status: filterStatus === 'ALL' ? undefined : filterStatus
       });
       setPendingRooms(res.items);
@@ -63,13 +64,15 @@ export default function ListingApprovalPage() {
     fetchRooms();
   }, [filterStatus, page, limit, debouncedSearch]);
 
-  const handleApprove = async (roomId: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn phê duyệt bài đăng này không?')) return;
+  const handleApprove = async (roomIdParam?: string) => {
+    const roomId = roomIdParam || approvingRoomId;
+    if (!roomId) return;
 
     try {
       setActionLoading(roomId);
       await adminService.approveRoom(roomId);
       showToast('Đã phê duyệt bài đăng thành công', 'success');
+      setApprovingRoomId(null);
       fetchRooms();
     } catch (err: any) {
       showToast(err.message || 'Lỗi khi phê duyệt bài đăng', 'error');
@@ -196,7 +199,10 @@ export default function ListingApprovalPage() {
                               <img
                                 src={getRoomFallbackImage(room.roomId, room.coverImageUrl)}
                                 alt={room.title}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover text-[8px] text-slate-400"
+                                onError={(e) => {
+                                  e.currentTarget.src = getRoomFallbackImage(room.roomId, null);
+                                }}
                               />
                             </div>
                             <div>
@@ -230,25 +236,74 @@ export default function ListingApprovalPage() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleApprove(room.roomId); }}
-                              disabled={actionLoading === room.roomId}
-                              className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition-colors disabled:opacity-50"
-                              title="Phê duyệt"
-                            >
-                              <Check size={18} />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setRejectingRoomId(room.roomId === rejectingRoomId ? null : room.roomId); }}
-                              disabled={actionLoading === room.roomId}
-                              className="w-9 h-9 rounded-full bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center transition-colors disabled:opacity-50"
-                              title="Từ chối"
-                            >
-                              <X size={18} />
-                            </button>
+                            {filterStatus === 'PENDING' ? (
+                              <>
+                                <button
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setApprovingRoomId(room.roomId === approvingRoomId ? null : room.roomId);
+                                    setRejectingRoomId(null); 
+                                  }}
+                                  disabled={actionLoading === room.roomId}
+                                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 ${approvingRoomId === room.roomId ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
+                                  title="Phê duyệt"
+                                >
+                                  <Check size={18} />
+                                </button>
+                                <button
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setRejectingRoomId(room.roomId === rejectingRoomId ? null : room.roomId); 
+                                    setApprovingRoomId(null);
+                                  }}
+                                  disabled={actionLoading === room.roomId}
+                                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 ${rejectingRoomId === room.roomId ? 'bg-red-600 text-white' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                                  title="Từ chối"
+                                >
+                                  <X size={18} />
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setViewingRoomId(room.roomId); }}
+                                className="w-9 h-9 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center transition-colors"
+                                title="Xem chi tiết"
+                              >
+                                <Eye size={18} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
+                      {/* Approve Form Row */}
+                      {approvingRoomId === room.roomId && (
+                        <tr>
+                          <td colSpan={5} className="bg-emerald-50/50 p-6 border-b border-emerald-100">
+                            <div className="flex flex-col gap-3 animate-in slide-in-from-top-2 duration-200">
+                              <label className="text-sm font-semibold text-emerald-900">Xác nhận phê duyệt bài đăng "{room.title}":</label>
+                              <div className="flex gap-3 items-stretch">
+                                <div className="flex-1 px-4 py-2 bg-white border border-emerald-200 rounded-xl text-sm text-emerald-700 flex items-center gap-2">
+                                  <CheckCircle size={16} className="text-emerald-500 flex-shrink-0" />
+                                  <span>Bài đăng sẽ ngay lập tức được hiển thị công khai trên hệ thống cho khách thuê tìm kiếm và đặt chỗ.</span>
+                                </div>
+                                <button
+                                  onClick={() => handleApprove()}
+                                  disabled={actionLoading === room.roomId}
+                                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl transition-colors text-sm disabled:opacity-70 min-w-[150px] flex justify-center items-center"
+                                >
+                                  {actionLoading === room.roomId ? 'Đang xử lý...' : 'Xác nhận duyệt'}
+                                </button>
+                                <button
+                                  onClick={() => setApprovingRoomId(null)}
+                                  className="px-6 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition-colors text-sm"
+                                >
+                                  Hủy bỏ
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
                       {/* Reject Form Row */}
                       {rejectingRoomId === room.roomId && (
                         <tr>
@@ -331,6 +386,7 @@ export default function ListingApprovalPage() {
           setRejectingRoomId(id);
         }}
         actionLoading={actionLoading}
+        isPending={filterStatus === 'PENDING'}
       />
     </div>
   );

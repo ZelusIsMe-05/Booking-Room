@@ -8,6 +8,7 @@ import { formatCurrency } from '@/utils/formatCurrency';
 import { getRoomFallbackImage } from '@/utils/imageFallback';
 import { exportToCsv } from '@/utils/exportCsv';
 import { Search, Filter, AlertCircle, FileText, Download, Copy } from 'lucide-react';
+import TransactionDetailModal from '@/components/admin/TransactionDetailModal';
 
 const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
   if (typeof window !== 'undefined') {
@@ -25,6 +26,7 @@ export default function TransactionsPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
+  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -42,7 +44,7 @@ export default function TransactionsPage() {
       const res = await adminService.getTransactions({
         page,
         limit,
-        search: debouncedSearch,
+        search: debouncedSearch || undefined,
         status: filterStatus === 'ALL' ? undefined : filterStatus
       });
       setTransactions(res.items);
@@ -79,12 +81,6 @@ export default function TransactionsPage() {
       <AdminHeader
         title="Quản lý giao dịch"
         description="Theo dõi và tra cứu tất cả các giao dịch thanh toán trên hệ thống."
-        action={
-          <button onClick={handleExport} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-xl font-medium transition-colors shadow-sm text-sm">
-            <Download size={18} />
-            <span>Xuất báo cáo</span>
-          </button>
-        }
       />
 
       <div className="flex-1 p-8 overflow-y-auto">
@@ -140,6 +136,11 @@ export default function TransactionsPage() {
                 Từ chối
               </button>
             </div>
+            
+            <button onClick={handleExport} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm text-sm ml-2">
+              <Download size={18} className="text-slate-500" />
+              <span>Xuất báo cáo</span>
+            </button>
           </div>
         </div>
 
@@ -155,7 +156,7 @@ export default function TransactionsPage() {
                   <th className="px-6 py-4 font-semibold">Số tiền</th>
                   <th className="px-6 py-4 font-semibold">Phương thức</th>
                   <th className="px-6 py-4 font-semibold">Thời gian</th>
-                  <th className="px-6 py-4 font-semibold text-right">Trạng thái</th>
+                  <th className="px-6 py-4 font-semibold text-center">Trạng thái</th>
                 </tr>
               </thead>
               <tbody className={`divide-y divide-slate-100 text-sm transition-opacity duration-200 ${loading && transactions.length > 0 ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -174,7 +175,11 @@ export default function TransactionsPage() {
                   </tr>
                 ) : (
                   transactions.map((txn) => (
-                    <tr key={txn.transaction_id} className="hover:bg-slate-50/50 transition-colors">
+                    <tr 
+                      key={txn.transaction_id} 
+                      className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                      onClick={() => setSelectedTransaction(txn)}
+                    >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
@@ -184,7 +189,8 @@ export default function TransactionsPage() {
                             <div className="flex items-center gap-2">
                               <p className="font-semibold text-slate-900" title={txn.transaction_id}>#{txn.transaction_id.substring(0, 8)}...</p>
                               <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   navigator.clipboard.writeText(txn.transaction_id);
                                   showToast('Đã sao chép mã giao dịch', 'success');
                                 }}
@@ -227,7 +233,7 @@ export default function TransactionsPage() {
                       <td className="px-6 py-4 text-slate-600">
                         {new Date(txn.created_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-center">
                         <StatusBadge status={txn.status === 'SUCCESS' ? 'Thành công' : txn.status === 'PENDING' ? 'Đang xử lý' : 'Từ chối'} />
                       </td>
                     </tr>
@@ -264,6 +270,12 @@ export default function TransactionsPage() {
           )}
         </div>
       </div>
+
+      <TransactionDetailModal
+        transaction={selectedTransaction}
+        isOpen={!!selectedTransaction}
+        onClose={() => setSelectedTransaction(null)}
+      />
     </div>
   );
 }

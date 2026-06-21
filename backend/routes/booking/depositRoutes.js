@@ -19,6 +19,9 @@ router.get('/my', requireAuth, authorizeRoles('TENANT'), depositController.listM
 // GET /api/bookings/deposits/active — Lấy deposit dang hoat dong cua tenant cho 1 phong
 router.get('/active', requireAuth, authorizeRoles('TENANT'), depositController.getActiveDeposit);
 
+// POST /api/bookings/deposits/expire-overdue — Trigger expire các đơn đặt cọc quá hạn (public)
+router.post('/expire-overdue', depositController.expireDeposits);
+
 // GET /api/bookings/deposits/:id — Tenant / Landlord / Admin xem chi tiết
 router.get('/:id', requireAuth, depositController.getDepositDetail);
 

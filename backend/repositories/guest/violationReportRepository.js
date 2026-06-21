@@ -17,10 +17,17 @@ async function findReportsByTenant(tenantId, { limit, offset }) {
     .count('report_id as count');
 
   const items = await db('violation_reports')
-    .where({ tenant_id: tenantId })
-    .orderBy('created_at', 'desc')
+    .leftJoin('rooms', 'violation_reports.room_id', 'rooms.room_id')
+    .leftJoin('users', 'violation_reports.landlord_id', 'users.user_id')
+    .where({ 'violation_reports.tenant_id': tenantId })
+    .orderBy('violation_reports.created_at', 'desc')
     .limit(limit)
-    .offset(offset);
+    .offset(offset)
+    .select(
+      'violation_reports.*',
+      'rooms.title as room_title',
+      'users.full_name as landlord_name'
+    );
 
   return { items, total: Number(count) };
 }
@@ -30,7 +37,14 @@ async function findReportsByTenant(tenantId, { limit, offset }) {
  */
 async function findReportById(reportId, tenantId) {
   return await db('violation_reports')
-    .where({ report_id: reportId, tenant_id: tenantId })
+    .leftJoin('rooms', 'violation_reports.room_id', 'rooms.room_id')
+    .leftJoin('users', 'violation_reports.landlord_id', 'users.user_id')
+    .where({ 'violation_reports.report_id': reportId, 'violation_reports.tenant_id': tenantId })
+    .select(
+      'violation_reports.*',
+      'rooms.title as room_title',
+      'users.full_name as landlord_name'
+    )
     .first();
 }
 

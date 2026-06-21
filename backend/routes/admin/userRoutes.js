@@ -13,5 +13,7 @@ router.patch('/:id/lock', userController.lockUser);
 router.patch('/:id/unlock', userController.unlockUser);
 router.patch('/:id/role', userController.updateUserRole);
 router.post('/:id/password-reset', userController.resetUserPassword);
+router.patch('/:id/approve', userController.approveLandlord);
+router.patch('/:id/reject', userController.rejectLandlord);
 
 module.exports = router;

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supportTicketController = require('../../controllers/guest/supportTicketController');
 const { requireAuth } = require('../../middlewares/authMiddleware');
+const upload = require('../../config/multer');
 
 /**
  * Support Ticket routes.
@@ -12,7 +13,7 @@ const { requireAuth } = require('../../middlewares/authMiddleware');
 router.use(requireAuth);
 
 // POST /api/support-tickets — Create a new ticket
-router.post('/', supportTicketController.create);
+router.post('/', upload.single('evidence_image'), supportTicketController.create);
 
 // GET /api/support-tickets — List tickets
 router.get('/', supportTicketController.list);

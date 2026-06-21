@@ -26,9 +26,10 @@ async function listPendingRooms(query = {}) {
   }
 
   const status = query.status;
+  const keyword = query.keyword ? String(query.keyword).trim() : undefined;
 
-  const rows = await roomRepository.findPendingRooms({ page, limit, status });
-  const total = await roomRepository.countPendingRooms({ status });
+  const rows = await roomRepository.findPendingRooms({ page, limit, status, keyword });
+  const total = await roomRepository.countPendingRooms({ status, keyword });
 
   const mappedItems = rows.map((row) => ({
     roomId: row.room_id,
@@ -84,7 +85,7 @@ async function approveRoom(roomId, adminId) {
       user_id: room.landlord_id,
       title: 'Phòng đã được duyệt',
       content: 'Bài đăng phòng của bạn đã được phê duyệt và dang hiển thị công khai.',
-      notification_type: 'SYSTEM',
+      notification_type: 'ROOM_APPROVAL',
       status: 'UNREAD'
     }, trx);
 
@@ -120,7 +121,7 @@ async function rejectRoom(roomId, adminId, reason) {
       user_id: room.landlord_id,
       title: 'Bài đăng phòng bị từ chối',
       content: 'Bài đăng của bạn bị từ chối với lý do: ' + reason.trim(),
-      notification_type: 'SYSTEM',
+      notification_type: 'ROOM_APPROVAL',
       status: 'UNREAD'
     }, trx);
 

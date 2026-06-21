@@ -163,7 +163,7 @@ async function findTransactionsByTenant(tenantId, { status, page = 1, limit = 20
  * @param {number} [filters.limit=20]
  * @returns {Promise<{ items: object[], total: number }>}
  */
-async function findAllTransactions({ status, paymentMethod, page = 1, limit = 20 } = {}) {
+async function findAllTransactions({ status, paymentMethod, keyword, page = 1, limit = 20 } = {}) {
   const offset = (page - 1) * limit;
 
   const query = db('transactions')
@@ -177,6 +177,15 @@ async function findAllTransactions({ status, paymentMethod, page = 1, limit = 20
 
   if (status) query.where('transactions.status', status.toUpperCase());
   if (paymentMethod) query.where('transactions.payment_method', paymentMethod.toUpperCase());
+  if (keyword) {
+    const kw = `%${keyword}%`;
+    query.where((builder) => {
+      builder
+        .whereILike('users.full_name', kw)
+        .orWhereILike('users.email', kw)
+        .orWhereRaw('CAST(transactions.transaction_id AS TEXT) ILIKE ?', [kw]);
+    });
+  }
 
   const [{ count }] = await query.clone().count('transactions.transaction_id as count');
 

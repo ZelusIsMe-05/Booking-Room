@@ -5,6 +5,8 @@ import { X, MapPin, Maximize, Check, AlertCircle } from 'lucide-react';
 import { roomService, BackendRoom } from '@/services/roomService';
 import { formatCurrency } from '@/utils/formatCurrency';
 import { getRoomFallbackImage } from '@/utils/imageFallback';
+import { adminService } from '@/services/adminService';
+import Avatar from './Avatar';
 
 interface RoomDetailModalProps {
   roomId: string;
@@ -13,9 +15,10 @@ interface RoomDetailModalProps {
   onApprove: (roomId: string) => void;
   onReject: (roomId: string) => void;
   actionLoading: string | null;
+  isPending?: boolean;
 }
 
-export default function RoomDetailModal({ roomId, isOpen, onClose, onApprove, onReject, actionLoading }: RoomDetailModalProps) {
+export default function RoomDetailModal({ roomId, isOpen, onClose, onApprove, onReject, actionLoading, isPending = false }: RoomDetailModalProps) {
   const [room, setRoom] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +89,14 @@ export default function RoomDetailModal({ roomId, isOpen, onClose, onApprove, on
               {/* Left Column - Images */}
               <div className="w-full md:w-1/2 space-y-4">
                 <div className="w-full aspect-[4/3] rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
-                  <img src={activeImage} alt="Room" className="w-full h-full object-cover" />
+                  <img 
+                    src={activeImage} 
+                    alt="Room" 
+                    className="w-full h-full object-cover" 
+                    onError={(e) => {
+                      e.currentTarget.src = getRoomFallbackImage(room.roomId, null);
+                    }}
+                  />
                 </div>
                 
                 {room.images && room.images.length > 0 && (
@@ -97,7 +107,14 @@ export default function RoomDetailModal({ roomId, isOpen, onClose, onApprove, on
                         onClick={() => setActiveImage(img.imageUrl)}
                         className={`w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all ${activeImage === img.imageUrl ? 'border-booking-primary opacity-100' : 'border-transparent opacity-60 hover:opacity-100'}`}
                       >
-                        <img src={img.imageUrl} alt="Thumbnail" className="w-full h-full object-cover" />
+                        <img 
+                          src={img.imageUrl} 
+                          alt="Thumbnail" 
+                          className="w-full h-full object-cover" 
+                          onError={(e) => {
+                            e.currentTarget.src = getRoomFallbackImage(room.roomId, null);
+                          }}
+                        />
                       </button>
                     ))}
                   </div>
@@ -107,15 +124,12 @@ export default function RoomDetailModal({ roomId, isOpen, onClose, onApprove, on
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 mt-6">
                   <h3 className="text-sm font-semibold text-slate-500 uppercase mb-3">Thông tin người đăng</h3>
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-slate-200 overflow-hidden">
-                      {room.host?.avatarUrl ? (
-                        <img src={room.host.avatarUrl} alt="Host" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-indigo-100 text-indigo-600 font-bold text-lg">
-                          {room.host?.fullName?.charAt(0) || 'H'}
-                        </div>
-                      )}
-                    </div>
+                    <Avatar
+                      src={room.host?.avatarUrl}
+                      alt={room.host?.fullName || 'Host'}
+                      fallbackText={room.host?.fullName || 'H'}
+                      className="w-12 h-12 text-lg text-indigo-600 bg-indigo-100"
+                    />
                     <div>
                       <p className="font-bold text-slate-900">{room.host?.fullName || 'N/A'}</p>
                       <p className="text-sm text-slate-500">{room.host?.phoneNumber || 'Chưa cung cấp SĐT'}</p>
@@ -194,7 +208,7 @@ export default function RoomDetailModal({ roomId, isOpen, onClose, onApprove, on
         </div>
 
         {/* Footer Actions */}
-        {room && (
+        {room && isPending && (
           <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3 z-10">
             <button 
               onClick={() => onReject(roomId)}

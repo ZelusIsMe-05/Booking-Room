@@ -126,7 +126,10 @@ export default function AdminDashboard() {
                           <img 
                             src={getRoomFallbackImage(room.roomId || 'rm', room.coverImageUrl)} 
                             alt={room.title} 
-                            className="w-full h-full object-cover" 
+                            className="w-full h-full object-cover text-[8px] text-slate-400" 
+                            onError={(e) => {
+                              e.currentTarget.src = getRoomFallbackImage(room.roomId, null);
+                            }}
                           />
                         </div>
                         <div>
