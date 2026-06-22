@@ -128,6 +128,7 @@ export function mapBackendRoomToBookingRoom(room: any, index?: number): BookingR
     latitude: room.latitude ?? null,
     longitude: room.longitude ?? null,
     host: room.host ? {
+      userId: room.host.userId || room.host.user_id || room.host.landlordId || null,
       fullName: room.host.fullName || room.host.full_name || 'Nguyễn Văn A',
       avatarUrl: room.host.avatarUrl || room.host.avatar_url || null,
       email: room.host.email,

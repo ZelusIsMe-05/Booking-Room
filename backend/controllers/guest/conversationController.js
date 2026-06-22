@@ -84,6 +84,23 @@ exports.sendMessage = async (req, res, next) => {
 
     const message = await conversationService.sendMessage(conversationId, userId, content);
 
+    // Emit realtime event via Socket.io
+    const io = req.app.get('io');
+    if (io) {
+      io.to(conversationId).emit('receive_message', message);
+
+      // Emit new message notification to the peer
+      const db = require('../../config/db');
+      const conversation = await db('conversations').where({ conversation_id: conversationId }).first();
+      if (conversation) {
+        const peerUserId = conversation.tenant_id === userId ? conversation.landlord_id : conversation.tenant_id;
+        io.to(peerUserId).emit('new_message_notification', {
+          conversationId,
+          message
+        });
+      }
+    }
+
     return sendSuccess(res, {
       status: 201,
       message: 'Gửi tin nhắn thành công.',

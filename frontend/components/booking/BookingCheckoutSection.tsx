@@ -4,12 +4,18 @@ import { useState, useEffect, useRef } from 'react';
 import { WalletIcon, MessageIcon, LockIcon, ClockIcon } from './Icons';
 import { bookingService } from '@/services/bookingService';
 import { useAuth } from '@/context/AuthContext';
+import { useTenantChat } from '@/context/TenantChatContext';
 
 interface BookingCheckoutSectionProps {
   roomId: string;
   price: number;
   deposit: number;
   roomTitle: string;
+  host?: {
+    userId: string | null;
+    fullName: string;
+    avatarUrl: string | null;
+  };
 }
 
 export default function BookingCheckoutSection({
@@ -17,8 +23,10 @@ export default function BookingCheckoutSection({
   price,
   deposit,
   roomTitle,
+  host,
 }: BookingCheckoutSectionProps) {
   const { user } = useAuth();
+  const { openChatWith } = useTenantChat();
   // Booking status and states
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -140,12 +148,16 @@ export default function BookingCheckoutSection({
 
   const startBookingFlow = async () => {
     if (!user) {
-      alert('Vui lòng đăng nhập bằng tài khoản Người thuê để đặt cọc.');
+      window.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message: 'Vui lòng đăng nhập bằng tài khoản Người thuê để đặt cọc.', type: 'warning' }
+      }));
       window.location.href = `/auth/login?redirect=/rooms/${roomId}`;
       return;
     }
     if (user.role !== 'TENANT') {
-      alert('Chỉ tài khoản Người thuê (Tenant) mới có thể thực hiện đặt cọc.');
+      window.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message: 'Chỉ tài khoản Người thuê (Tenant) mới có thể thực hiện đặt cọc.', type: 'error' }
+      }));
       return;
     }
 
@@ -349,12 +361,16 @@ export default function BookingCheckoutSection({
                     type="button"
                     onClick={() => {
                       if (!tempDate || !tempTime) {
-                        alert('Vui lòng chọn đầy đủ cả ngày và giờ hẹn.');
+                        window.dispatchEvent(new CustomEvent('show-toast', {
+                          detail: { message: 'Vui lòng chọn đầy đủ cả ngày và giờ hẹn.', type: 'warning' }
+                        }));
                         return;
                       }
                       const selected = new Date(`${tempDate}T${tempTime}`);
                       if (selected.getTime() <= Date.now()) {
-                        alert('Lịch hẹn xem phòng phải ở thời điểm tương lai.');
+                        window.dispatchEvent(new CustomEvent('show-toast', {
+                          detail: { message: 'Lịch hẹn xem phòng phải ở thời điểm tương lai.', type: 'warning' }
+                        }));
                         return;
                       }
                       setAppointmentTime(`${tempDate}T${tempTime}`);
@@ -489,17 +505,27 @@ export default function BookingCheckoutSection({
 
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
               if (!user) {
-                alert('Vui lòng đăng nhập bằng tài khoản Người thuê để nhắn tin cho chủ nhà.');
+                window.dispatchEvent(new CustomEvent('show-toast', {
+                  detail: { message: 'Vui lòng đăng nhập bằng tài khoản Người thuê để nhắn tin cho chủ nhà.', type: 'warning' }
+                }));
                 window.location.href = `/auth/login?redirect=/rooms/${roomId}`;
                 return;
               }
               if (user.role !== 'TENANT') {
-                alert('Chỉ tài khoản Người thuê (Tenant) mới có thể nhắn tin với chủ nhà.');
+                window.dispatchEvent(new CustomEvent('show-toast', {
+                  detail: { message: 'Chỉ tài khoản Người thuê (Tenant) mới có thể nhắn tin với chủ nhà.', type: 'error' }
+                }));
                 return;
               }
-              alert('Tính năng nhắn tin với chủ phòng đang được kết nối.');
+              if (!host || !host.userId) {
+                window.dispatchEvent(new CustomEvent('show-toast', {
+                  detail: { message: 'Không tìm thấy thông tin chủ phòng.', type: 'error' }
+                }));
+                return;
+              }
+              await openChatWith(host.userId, host.fullName, host.avatarUrl);
             }}
             className="w-full rounded-xl border border-booking-primary text-booking-primary font-bold py-3.5 px-5 flex items-center justify-center gap-2 hover:bg-[#004ac6]/5 transition active:scale-[0.98]"
           >

@@ -20,6 +20,7 @@ export type MessageStatus = 'SENT' | 'DELIVERED' | 'READ';
 
 export interface ConversationMessage {
   message_id: string;
+  conversation_id: string;
   content: string;
   sender_id: string;
   sent_at: string;
@@ -37,6 +38,10 @@ export interface MessagesResponse {
 export const conversationService = {
   listConversations: async (): Promise<ApiResponse<ConversationSummary[]>> => {
     return apiClient.get<ApiResponse<ConversationSummary[]>>('/conversations');
+  },
+
+  initConversation: async (peerUserId: string): Promise<ApiResponse<ConversationSummary>> => {
+    return apiClient.post<ApiResponse<ConversationSummary>>('/conversations', { peer_user_id: peerUserId });
   },
 
   getMessages: async (

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useSocket } from '@/context/SocketContext';
 import HostSidebar from '@/components/host/HostSidebar';
 import {
   conversationService,
@@ -170,6 +171,7 @@ function MessageBubble({
 
 export default function HostMessagesPage() {
   const { user, logout } = useAuth();
+  const { socket } = useSocket();
   const router = useRouter();
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -231,6 +233,89 @@ export default function HostMessagesPage() {
     if (activeConvId) loadMessages(activeConvId);
   }, [activeConvId, loadMessages]);
 
+  // Socket room joining and realtime message listening inside active chat
+  useEffect(() => {
+    if (!socket || !activeConvId) return;
+
+    socket.emit('join_room', activeConvId);
+
+    const handleReceiveMessage = (msg: ConversationMessage) => {
+      if (msg.conversation_id === activeConvId) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.message_id === msg.message_id)) return prev;
+          return [...prev, msg];
+        });
+        // Mark as read in the background
+        conversationService.markAsRead(activeConvId).catch(() => undefined);
+        // Update unread and snippet in local state
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.conversation_id === activeConvId
+              ? { ...c, last_message: msg.content, last_message_at: msg.sent_at, unread_count: 0 }
+              : c
+          )
+        );
+      }
+    };
+
+    socket.on('receive_message', handleReceiveMessage);
+
+    return () => {
+      socket.emit('leave_room', activeConvId);
+      socket.off('receive_message', handleReceiveMessage);
+    };
+  }, [socket, activeConvId]);
+
+  // Socket notification listening for background conversations
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNotification = async (data: { conversationId: string; message: ConversationMessage }) => {
+      const { conversationId, message } = data;
+
+      if (conversationId !== activeConvId) {
+        // If conversation exists in local state, update it
+        const exists = conversations.some((c) => c.conversation_id === conversationId);
+        if (exists) {
+          setConversations((prev) => {
+            const updated = prev.map((c) =>
+              c.conversation_id === conversationId
+                ? {
+                    ...c,
+                    last_message: message.content,
+                    last_message_at: message.sent_at,
+                    unread_count: c.unread_count + 1,
+                  }
+                : c
+            );
+            // Sort updated list by last message time descending
+            return [...updated].sort((a, b) => {
+              const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+              const timeB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+              return timeB - timeA;
+            });
+          });
+        } else {
+          // If it's a new conversation, reload the list to fetch it from the database
+          try {
+            const res = await conversationService.listConversations();
+            if (res && res.data) {
+              setConversations(res.data);
+            }
+          } catch (err) {
+            console.error('Failed to reload conversations list on socket notification:', err);
+          }
+        }
+      }
+    };
+
+    socket.on('new_message_notification', handleNotification);
+
+    return () => {
+      socket.off('new_message_notification', handleNotification);
+    };
+  }, [socket, activeConvId, conversations]);
+
   // Scroll to bottom when messages change.
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -256,7 +341,10 @@ export default function HostMessagesPage() {
       const res = await conversationService.sendMessage(activeConvId, content);
       const sent = res.data;
       if (sent) {
-        setMessages((prev) => [...prev, sent]);
+        setMessages((prev) => {
+          if (prev.some((m) => m.message_id === sent.message_id)) return prev;
+          return [...prev, sent];
+        });
         setConversations((prev) =>
           prev.map((c) =>
             c.conversation_id === activeConvId

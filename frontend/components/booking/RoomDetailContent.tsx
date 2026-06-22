@@ -490,6 +490,7 @@ export default function RoomDetailContent({ room }: RoomDetailContentProps) {
             price={room.price}
             deposit={room.deposit}
             roomTitle={room.title}
+            host={room.host}
           />
         </section>
       </main>

@@ -12,6 +12,9 @@ export const metadata: Metadata = {
 };
 
 import ToastContainer from '@/components/common/ToastContainer';
+import { TenantChatProvider } from '@/context/TenantChatContext';
+import TenantChatContainer from '@/components/booking/TenantChatContainer';
+import { SocketProvider } from '@/context/SocketContext';
 
 export default function RootLayout({
   children,
@@ -22,7 +25,12 @@ export default function RootLayout({
     <html lang="vi" suppressHydrationWarning>
       <body suppressHydrationWarning>
         <AuthProvider>
-          {children}
+          <SocketProvider>
+            <TenantChatProvider>
+              {children}
+              <TenantChatContainer />
+            </TenantChatProvider>
+          </SocketProvider>
           <ToastContainer />
         </AuthProvider>
       </body>
