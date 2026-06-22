@@ -54,7 +54,8 @@ function findRoomForDeposit(roomId) {
  */
 function findActiveDepositByTenantAndRoom(tenantId, roomId) {
   return db('deposits')
-    .where({ tenant_id: tenantId, room_id: roomId, status: 'PROCESSING' })
+    .where({ tenant_id: tenantId, room_id: roomId })
+    .whereIn('status', ['PROCESSING', 'CONFIRMED'])
     .first();
 }
 

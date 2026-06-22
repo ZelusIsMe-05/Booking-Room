@@ -80,6 +80,8 @@ async function updateReportStatus(req, res, next) {
     const report = await violationReportService.updateReportStatus({
       reportId: req.params.id,
       status: req.body ? req.body.status : undefined,
+      adminResponseTenant: req.body ? (req.body.adminResponseTenant || req.body.adminResponse) : undefined,
+      adminResponseLandlord: req.body ? req.body.adminResponseLandlord : undefined,
       actor: getActor(req),
     });
 

@@ -1,11 +1,20 @@
 const transactionService = require('../../services/payment/transactionService');
 const { sendSuccess } = require('../../utils/responseHelper');
 
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.length > 0) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.ip || (req.connection && req.connection.remoteAddress) || '127.0.0.1';
+}
+
 async function createTransaction(req, res, next) {
   try {
     const { transaction, paymentUrl } = await transactionService.createTransaction(
       req.user,
       req.body,
+      getClientIp(req)
     );
     return sendSuccess(res, {
       status: 201,
@@ -26,6 +35,35 @@ async function processWebhook(req, res, next) {
         ? 'Giao dich da duoc xu ly truoc do.'
         : 'Webhook xu ly thanh cong.',
       data: { transaction, idempotent },
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function vnpayIpn(req, res, next) {
+  try {
+    const result = await transactionService.processVnpayIpn(req.query || {});
+    return res.status(200).json({
+      RspCode: result.rspCode,
+      Message: result.message,
+    });
+  } catch (err) {
+    console.error('Loi VNPAY IPN:', err);
+    return res.status(200).json({
+      RspCode: '99',
+      Message: 'Unknown error',
+    });
+  }
+}
+
+async function vnpayVerify(req, res, next) {
+  try {
+    const transaction = await transactionService.processVnpayVerify(req.query || {});
+    return sendSuccess(res, {
+      status: 200,
+      message: 'Xac minh giao dich VNPAY thanh cong.',
+      data: { transaction },
     });
   } catch (err) {
     return next(err);
@@ -88,6 +126,8 @@ async function listAllTransactions(req, res, next) {
 module.exports = {
   createTransaction,
   processWebhook,
+  vnpayIpn,
+  vnpayVerify,
   getTransactionDetail,
   listMyTransactions,
   listAllTransactions,

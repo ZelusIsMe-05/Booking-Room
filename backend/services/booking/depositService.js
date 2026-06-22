@@ -246,7 +246,8 @@ async function getActiveDeposit(user, roomId) {
 
   const db = require('../../config/db');
   const transaction = await db('transactions')
-    .where({ deposit_id: deposit.deposit_id, status: 'PENDING' })
+    .where({ deposit_id: deposit.deposit_id })
+    .orderBy('created_at', 'desc')
     .first();
 
   return {

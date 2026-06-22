@@ -80,6 +80,7 @@ async function updateTicketStatus(req, res, next) {
     const ticket = await supportTicketService.updateTicketStatus({
       ticketId: req.params.id,
       status: req.body ? req.body.status : undefined,
+      adminResponse: req.body ? req.body.adminResponse : undefined,
       actor: getActor(req),
     });
 

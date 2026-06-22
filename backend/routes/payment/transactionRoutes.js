@@ -20,6 +20,12 @@ router.post(
 // POST /api/payments/webhook — Public (mock gateway callback), idempotent
 router.post('/webhook', transactionController.processWebhook);
 
+// GET /api/payments/vnpay/ipn — Public IPN callback from VNPAY
+router.get('/vnpay/ipn', transactionController.vnpayIpn);
+
+// GET /api/payments/vnpay/verify — Public verification of transaction status
+router.get('/vnpay/verify', transactionController.vnpayVerify);
+
 // GET /api/payments/transactions/my — Tenant xem lịch sử giao dịch của mình
 // IMPORTANT: /my đứng TRƯỚC /:id để tránh bị parse nhầm
 router.get(

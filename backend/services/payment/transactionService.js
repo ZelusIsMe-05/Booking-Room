@@ -39,7 +39,7 @@ function buildMockPaymentUrl(transactionId, returnUrl) {
  * @param {object} body         { deposit_id, payment_method, return_url }
  * @returns {Promise<object>}   { transaction, payment_url }
  */
-async function createTransaction(user, { deposit_id, payment_method, return_url }) {
+async function createTransaction(user, { deposit_id, payment_method, return_url }, ipAddress) {
   // 1. Validate input
   if (!deposit_id) {
     throw new AppError('VALIDATION_ERROR', 'deposit_id la bat buoc.', 400);
@@ -80,7 +80,21 @@ async function createTransaction(user, { deposit_id, payment_method, return_url 
 
   const crypto = require('crypto');
   const transactionId = crypto.randomUUID();
-  const paymentUrl = buildMockPaymentUrl(transactionId, return_url);
+  
+  let paymentUrl;
+  const isVnpay = String(payment_method).toUpperCase() === 'VNPAY';
+  if (isVnpay) {
+    const vnpay = require('../../utils/vnpay');
+    paymentUrl = vnpay.buildPaymentUrl({
+      ipAddr: ipAddress || '127.0.0.1',
+      amount: Number(deposit.deposit_amount),
+      txnRef: transactionId,
+      orderInfo: `Thanh toan dat coc cho phong: ${deposit.room_title || 'tro'}`,
+      returnUrl: return_url || `http://localhost:3000/bookings/payment-result`
+    });
+  } else {
+    paymentUrl = buildMockPaymentUrl(transactionId, return_url);
+  }
 
   // 4. Tạo transaction
   const transaction = await transactionRepository.createTransaction({
@@ -209,11 +223,132 @@ async function listAllTransactions(query) {
   return transactionRepository.findAllTransactions({ status, paymentMethod, keyword, page, limit });
 }
 
+/**
+ * Xử lý IPN từ VNPAY (server-to-server)
+ */
+async function processVnpayIpn(queryParams) {
+  const vnpay = require('../../utils/vnpay');
+
+  // 1. Kiểm tra chữ ký bảo mật
+  if (!vnpay.verifySecureHash(queryParams)) {
+    return { rspCode: '97', message: 'Invalid signature' };
+  }
+
+  const transactionId = queryParams.vnp_TxnRef;
+  const vnpResponseCode = queryParams.vnp_ResponseCode;
+  const vnpAmount = Number(queryParams.vnp_Amount) / 100;
+
+  // 2. Tìm giao dịch trong DB
+  const transaction = await transactionRepository.findTransactionById(transactionId);
+  if (!transaction) {
+    return { rspCode: '01', message: 'Order not found' };
+  }
+
+  // 3. Kiểm tra số tiền
+  if (Math.round(vnpAmount) !== Math.round(Number(transaction.amount))) {
+    return { rspCode: '04', message: 'Invalid amount' };
+  }
+
+  // 4. Kiểm tra trạng thái giao dịch đã được xử lý chưa (Idempotency)
+  if (transaction.status !== 'PENDING') {
+    return { rspCode: '02', message: 'Order already confirmed' };
+  }
+
+  // 5. Xác định trạng thái thanh toán từ ResponseCode
+  const newStatus = vnpResponseCode === '00' ? 'SUCCESS' : 'FAILED';
+
+  // 6. Cập nhật DB
+  const updated = await transactionRepository.processWebhookUpdate(
+    transactionId,
+    newStatus,
+    {
+      deposit_id: transaction.deposit_id,
+      room_id: transaction.room_id,
+    }
+  );
+
+  // Gửi thông báo cho Host nếu thanh toán thành công
+  if (newStatus === 'SUCCESS') {
+    try {
+      const notificationService = require('../guest/notificationService');
+      await notificationService.createNotification(
+        transaction.landlord_id,
+        'Yêu cầu duyệt đặt cọc mới',
+        `Phòng "${transaction.room_title}" đã được thanh toán tiền cọc thành công. Vui lòng phê duyệt hoặc từ chối đơn đặt cọc.`,
+        'DEPOSIT',
+      );
+    } catch (err) {
+      console.error('Loi gui thong bao cho Host sau VNPAY SUCCESS:', err);
+    }
+  }
+
+  return { rspCode: '00', message: 'Confirm success' };
+}
+
+/**
+ * Client-side gọi API verify kết quả giao dịch sau khi redirect từ VNPAY về
+ */
+async function processVnpayVerify(queryParams) {
+  const vnpay = require('../../utils/vnpay');
+
+  // 1. Kiểm tra chữ ký bảo mật
+  if (!vnpay.verifySecureHash(queryParams)) {
+    throw new AppError('INVALID_SIGNATURE', 'Chữ ký giao dịch không hợp lệ.', 400);
+  }
+
+  const transactionId = queryParams.vnp_TxnRef;
+  const vnpResponseCode = queryParams.vnp_ResponseCode;
+  const vnpAmount = Number(queryParams.vnp_Amount) / 100;
+
+  // 2. Tìm giao dịch trong DB
+  const transaction = await transactionRepository.findTransactionById(transactionId);
+  if (!transaction) {
+    throw new AppError('TRANSACTION_NOT_FOUND', 'Không tìm thấy giao dịch tương ứng.', 404);
+  }
+
+  // 3. Kiểm tra số tiền
+  if (Math.round(vnpAmount) !== Math.round(Number(transaction.amount))) {
+    throw new AppError('INVALID_AMOUNT', 'Số tiền giao dịch không khớp.', 400);
+  }
+
+  // 4. Nếu trạng thái là PENDING, cập nhật ngay (đề phòng IPN chưa kịp gọi đến)
+  let updatedTransaction = transaction;
+  if (transaction.status === 'PENDING') {
+    const newStatus = vnpResponseCode === '00' ? 'SUCCESS' : 'FAILED';
+    updatedTransaction = await transactionRepository.processWebhookUpdate(
+      transactionId,
+      newStatus,
+      {
+        deposit_id: transaction.deposit_id,
+        room_id: transaction.room_id,
+      }
+    );
+
+    if (newStatus === 'SUCCESS') {
+      try {
+        const notificationService = require('../guest/notificationService');
+        await notificationService.createNotification(
+          transaction.landlord_id,
+          'Yêu cầu duyệt đặt cọc mới',
+          `Phòng "${transaction.room_title}" đã được thanh toán tiền cọc thành công. Vui lòng phê duyệt hoặc từ chối đơn đặt cọc.`,
+          'DEPOSIT',
+        );
+      } catch (err) {
+        console.error('Loi gui thong bao cho Host sau VNPAY SUCCESS (Verify):', err);
+      }
+    }
+  }
+
+  return updatedTransaction;
+}
+
 module.exports = {
   createTransaction,
   processWebhook,
   getTransactionDetail,
   listMyTransactions,
   listAllTransactions,
+  processVnpayIpn,
+  processVnpayVerify,
   VALID_PAYMENT_METHODS,
 };

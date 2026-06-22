@@ -121,7 +121,7 @@ async function getTicketDetail(ticketId) {
 /**
  * Admin: update ticket status (OPEN → IN_PROGRESS → CLOSED).
  */
-async function updateTicketStatus({ ticketId, status, actor }) {
+async function updateTicketStatus({ ticketId, status, adminResponse, actor }) {
   const upperStatus = String(status).trim().toUpperCase();
   if (!VALID_STATUSES.includes(upperStatus)) {
     throw new AppError('VALIDATION_ERROR', `Trạng thái không hợp lệ. Phải là: ${VALID_STATUSES.join(', ')}`, 400);
@@ -149,12 +149,17 @@ async function updateTicketStatus({ ticketId, status, actor }) {
   });
 
   // Notify the user
+  const trimmedResponse = adminResponse ? String(adminResponse).trim() : '';
   const notificationRepository = require('../../repositories/guest/notificationRepository');
   const statusLabels = { OPEN: 'Chờ xử lý', IN_PROGRESS: 'Đang xử lý', CLOSED: 'Đã giải quyết' };
+  let notifContent = `Yêu cầu hỗ trợ của bạn (Mã: ${ticketId.split('-')[0]}) đã được chuyển sang trạng thái: ${statusLabels[upperStatus] || upperStatus}.`;
+  if (trimmedResponse) {
+    notifContent += ` Phản hồi từ quản trị viên: "${trimmedResponse}"`;
+  }
   await notificationRepository.insertNotification({
     user_id: existing.user_id,
     title: 'Cập nhật yêu cầu hỗ trợ',
-    content: `Yêu cầu hỗ trợ của bạn (Mã: ${ticketId.split('-')[0]}) đã được chuyển sang trạng thái: ${statusLabels[upperStatus] || upperStatus}.`,
+    content: notifContent,
     notification_type: 'SUPPORT',
     status: 'UNREAD',
   });

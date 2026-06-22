@@ -150,8 +150,8 @@ export const adminService = {
     return response.data;
   },
 
-  updateViolationReportStatus: async (reportId: string, status: string): Promise<any> => {
-    const response = await apiClient.patch<{ data: any }>(`/admin/violation-reports/${reportId}/status`, { status });
+  updateViolationReportStatus: async (reportId: string, status: string, adminResponseTenant?: string, adminResponseLandlord?: string): Promise<any> => {
+    const response = await apiClient.patch<{ data: any }>(`/admin/violation-reports/${reportId}/status`, { status, adminResponseTenant, adminResponseLandlord });
     return response.data;
   },
 
@@ -161,8 +161,8 @@ export const adminService = {
     return response.data;
   },
 
-  updateSupportTicketStatus: async (ticketId: string, status: string): Promise<any> => {
-    const response = await apiClient.patch<{ data: any }>(`/admin/support-tickets/${ticketId}/status`, { status });
+  updateSupportTicketStatus: async (ticketId: string, status: string, adminResponse?: string): Promise<any> => {
+    const response = await apiClient.patch<{ data: any }>(`/admin/support-tickets/${ticketId}/status`, { status, adminResponse });
     return response.data;
   },
 

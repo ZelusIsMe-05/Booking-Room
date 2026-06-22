@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { WalletIcon, MessageIcon, LockIcon, ClockIcon } from './Icons';
 import { bookingService } from '@/services/bookingService';
+import { apiClient } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
 import { useTenantChat } from '@/context/TenantChatContext';
 
@@ -37,6 +38,7 @@ export default function BookingCheckoutSection({
 
   // Active deposit details
   const [activeDepositId, setActiveDepositId] = useState<string | null>(null);
+  const [activeDepositStatus, setActiveDepositStatus] = useState<string | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(900); // 15 mins in seconds
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -73,33 +75,43 @@ export default function BookingCheckoutSection({
       }
       try {
         const res = await bookingService.getActiveDeposit(roomId);
-        if (res && res.data && res.data.deposit && res.data.deposit.status === 'PROCESSING') {
+        if (res && res.data && res.data.deposit) {
           const { deposit, transaction } = res.data;
-          const expireTime = new Date(deposit.expired_at).getTime();
-          const remainingTime = Math.floor((expireTime - Date.now()) / 1000);
+          setActiveDepositStatus(deposit.status);
           
-          if (remainingTime > 0) {
-            const paymentUrlFromDb = transaction?.payment_url || null;
+          if (deposit.status === 'PROCESSING') {
+            const expireTime = new Date(deposit.expired_at).getTime();
+            const remainingTime = Math.floor((expireTime - Date.now()) / 1000);
             
-            setActiveDepositId(deposit.deposit_id);
-            setCountdown(remainingTime);
-            setTimerActive(true);
-            
-            if (paymentUrlFromDb) {
-              setPaymentUrl(paymentUrlFromDb);
-              setIsModalOpen(true);
+            if (remainingTime > 0) {
+              const paymentUrlFromDb = transaction?.payment_url || null;
               
-              // Keep sessionStorage updated
-              sessionStorage.setItem(`active_deposit_${roomId}`, deposit.deposit_id);
-              sessionStorage.setItem(`active_deposit_url_${roomId}`, paymentUrlFromDb);
-              sessionStorage.setItem(`active_deposit_expire_${roomId}`, String(expireTime));
+              setActiveDepositId(deposit.deposit_id);
+              setCountdown(remainingTime);
+              setTimerActive(true);
+              
+              if (paymentUrlFromDb) {
+                setPaymentUrl(paymentUrlFromDb);
+                setIsModalOpen(true);
+                
+                // Keep sessionStorage updated
+                sessionStorage.setItem(`active_deposit_${roomId}`, deposit.deposit_id);
+                sessionStorage.setItem(`active_deposit_url_${roomId}`, paymentUrlFromDb);
+                sessionStorage.setItem(`active_deposit_expire_${roomId}`, String(expireTime));
+              }
+              return;
             }
+          } else if (deposit.status === 'CONFIRMED') {
+            setActiveDepositId(deposit.deposit_id);
+            setTimerActive(false);
+            setIsModalOpen(false);
             return;
           }
         }
         
         // No active deposit found or it has expired/cancelled on server, clear everything
         setActiveDepositId(null);
+        setActiveDepositStatus(null);
         setPaymentUrl(null);
         setTimerActive(false);
         setIsModalOpen(false);
@@ -123,6 +135,61 @@ export default function BookingCheckoutSection({
       if (timerRef.current) clearInterval(timerRef.current);
       window.removeEventListener('deposit-updated', handleSyncEvent);
     };
+  }, [roomId]);
+
+  // Handle VNPAY callback parameters on redirect back to room page
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const vnpResponseCode = params.get('vnp_ResponseCode');
+    const vnpTxnRef = params.get('vnp_TxnRef');
+
+    if (vnpResponseCode && vnpTxnRef) {
+      async function verifyVnpayCallback() {
+        setLoading(true);
+        try {
+          // Call backend verify endpoint
+          const res = await apiClient.get<any>(`/payments/vnpay/verify${window.location.search}`);
+          
+          // Clear query parameters from address bar
+          const url = new URL(window.location.href);
+          url.searchParams.forEach((_, key) => {
+            if (key.startsWith('vnp_')) {
+              url.searchParams.delete(key);
+            }
+          });
+          window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+
+          if (res && res.data && res.data.transaction && res.data.transaction.status === 'SUCCESS') {
+            window.dispatchEvent(new CustomEvent('show-toast', {
+              detail: { message: 'Thanh toán đặt cọc phòng thành công!', type: 'success' }
+            }));
+            
+            // Clean up session storage draft
+            sessionStorage.removeItem(`active_deposit_${roomId}`);
+            sessionStorage.removeItem(`active_deposit_expire_${roomId}`);
+            sessionStorage.removeItem(`active_deposit_url_${roomId}`);
+            
+            // Sync status
+            window.dispatchEvent(new CustomEvent('deposit-updated'));
+          } else {
+            window.dispatchEvent(new CustomEvent('show-toast', {
+              detail: { message: 'Thanh toán đặt cọc thất bại hoặc đã bị hủy.', type: 'error' }
+            }));
+          }
+        } catch (err: any) {
+          console.error('Verify VNPAY error:', err);
+          window.dispatchEvent(new CustomEvent('show-toast', {
+            detail: { message: err.response?.data?.message || err.message || 'Lỗi xác minh giao dịch.', type: 'error' }
+          }));
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      verifyVnpayCallback();
+    }
   }, [roomId]);
 
   // Countdown timer effect
@@ -192,9 +259,8 @@ export default function BookingCheckoutSection({
         throw new Error('Không thể tìm thấy mã đơn đặt cọc (deposit_id) trong phản hồi.');
       }
 
-      // 2. Call Create Transaction API
-      console.log('Calling Create Transaction with Deposit ID:', newDepositId);
-      const txnRes = await bookingService.createTransaction(newDepositId, 'VNPAY');
+      const returnUrl = `${window.location.origin}/rooms/${roomId}`;
+      const txnRes = await bookingService.createTransaction(newDepositId, 'VNPAY', returnUrl);
       console.log('Create Transaction API Response:', txnRes);
 
       if (!txnRes) {
@@ -222,12 +288,14 @@ export default function BookingCheckoutSection({
       setPaymentUrl(payUrl);
       setCountdown(900); // 15 mins
       setTimerActive(true);
-      setIsModalOpen(true);
 
       // Save to sessionStorage for persistence on reload
       sessionStorage.setItem(`active_deposit_${roomId}`, newDepositId);
       sessionStorage.setItem(`active_deposit_url_${roomId}`, payUrl);
       sessionStorage.setItem(`active_deposit_expire_${roomId}`, String(Date.now() + 900 * 1000));
+
+      // Redirect immediately to VNPAY Sandbox Gateway
+      window.location.href = payUrl;
     } catch (err: any) {
       console.error('Lỗi đặt cọc:', err);
       setErrorMsg(err.message || 'Có lỗi xảy ra khi xử lý đơn cọc.');
@@ -584,31 +652,31 @@ export default function BookingCheckoutSection({
                 </div>
               </div>
 
-              {/* simulated payment gateway details */}
+              {/* VNPAY payment details */}
               <div className="w-full space-y-4">
-                <p className="text-xs font-bold text-booking-muted uppercase tracking-[0.02em] text-left">
-                  Quét mã QR để thanh toán
+                <p className="text-xs font-semibold text-booking-muted uppercase tracking-[0.02em] text-left">
+                  Thanh toán qua cổng VNPAY
                 </p>
 
-                {/* Mock QR Code Image Display */}
-                <div className="relative mx-auto h-[220px] w-[220px] bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden flex items-center justify-center p-2 shadow-inner">
-                  {/* Since sandbox is mock, we output a beautiful generic checkout QR image */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(paymentUrl || 'https://vnpay.vn')}`}
-                    alt="Mock Payment QR Code"
-                    className="h-full w-full object-contain"
-                  />
-                </div>
-                
-                <div className="text-xs text-booking-muted space-y-1">
-                  <p className="font-semibold text-booking-text">Nội dung chuyển khoản (Tự động):</p>
-                  <p className="py-1 px-3 bg-slate-100 rounded-lg font-mono text-booking-text break-all select-all">
-                    DEPOSIT_{activeDepositId?.slice(0, 8).toUpperCase()}
-                  </p>
-                  <p className="text-[11px] pt-1">
-                    * Mở ứng dụng ngân hàng hoặc ví VNPAY quét mã QR phía trên để hoàn tất thanh toán.
-                  </p>
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center shadow-inner flex flex-col items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-booking-primary text-xl">
+                    💳
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-booking-text">Yêu cầu thanh toán đang được xử lý</p>
+                    <p className="text-xs text-booking-muted mt-1 leading-relaxed">
+                      Bạn đang được chuyển hướng sang Cổng thanh toán VNPAY Sandbox để hoàn tất đặt cọc. Nếu trình duyệt không tự động chuyển hướng hoặc bạn đã lỡ đóng trang thanh toán, vui lòng nhấn nút dưới đây để tiếp tục.
+                    </p>
+                  </div>
+                  
+                  <a
+                    href={paymentUrl || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-booking-primary hover:bg-[#003f9e] text-white text-xs font-bold rounded-xl shadow-md transition active:scale-95"
+                  >
+                    Mở trang thanh toán VNPAY
+                  </a>
                 </div>
               </div>
             </div>
