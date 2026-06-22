@@ -111,6 +111,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     const errorMessage = data?.message || `Lỗi hệ thống (${response.status})`;
     const error = new Error(errorMessage) as any;
     error.status = response.status;
+    error.code = data?.code || null;
     error.data = data;
     throw error;
   }

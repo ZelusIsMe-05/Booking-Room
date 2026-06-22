@@ -71,7 +71,8 @@ export function mapBackendRoomToBookingRoom(room: any, index?: number): BookingR
   const roomType = room.roomType || room.room_type || 'Phòng trọ';
   
   // Extract average rating
-  const averageRating = room.averageRating !== undefined ? room.averageRating : room.average_rating;
+  const rawRating = room.averageRating !== undefined ? room.averageRating : room.average_rating;
+  const averageRating = rawRating !== null && rawRating !== undefined ? Number(rawRating) : undefined;
   
   // Extract created_at
   const createdAt = room.createdAt || room.created_at || new Date().toISOString();
@@ -124,6 +125,8 @@ export function mapBackendRoomToBookingRoom(room: any, index?: number): BookingR
     internetCost: Number(room.internetCost !== undefined ? room.internetCost : room.internet_cost) || 0,
     serviceFee: Number(room.serviceFee !== undefined ? room.serviceFee : room.service_fee) || 0,
     deposit: Number(room.depositAmount !== undefined ? room.depositAmount : room.deposit_amount) || 0,
+    status: room.status || 'AVAILABLE',
+    rentedBy: room.rentedBy || room.rented_by || null,
     // Tọa độ địa lý cho bản đồ
     latitude: room.latitude ?? null,
     longitude: room.longitude ?? null,

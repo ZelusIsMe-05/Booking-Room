@@ -6,9 +6,11 @@ import { CheckIcon, HeartIcon, MapPinIcon, StarIcon } from './Icons';
 type RoomCardProps = {
   room: BookingRoom;
   featured?: boolean;
+  isFavorited?: boolean;
+  onToggleFavorite?: (roomId: string, e: React.MouseEvent) => void;
 };
 
-export default function RoomCard({ room, featured = false }: RoomCardProps) {
+export default function RoomCard({ room, featured = false, isFavorited = false, onToggleFavorite }: RoomCardProps) {
   return (
     <Link
       href={`/rooms/${room.id}`}
@@ -42,9 +44,19 @@ export default function RoomCard({ room, featured = false }: RoomCardProps) {
       <button
         type="button"
         aria-label="Lưu phòng"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (onToggleFavorite) {
+            onToggleFavorite(room.id, e);
+          }
+        }}
         className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-booking-surface/70 text-booking-text backdrop-blur-sm transition hover:bg-white"
       >
-        <HeartIcon className="h-5 w-5" />
+        <HeartIcon 
+          className={`h-5 w-5 transition-colors ${isFavorited ? 'text-red-500' : 'text-booking-text'}`} 
+          filled={isFavorited}
+        />
       </button>
 
       <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-4 text-white">

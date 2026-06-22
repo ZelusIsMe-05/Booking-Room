@@ -14,7 +14,27 @@ async function listFavorites(tenantId, { page = 1, limit = 10 } = {}) {
   const l = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
 
   const { items, total } = await favoriteRepository.findFavoritesByTenant(tenantId, { page: p, limit: l });
-  return { items, total, page: p, limit: l };
+
+  const mappedItems = items.map((row) => ({
+    roomId: row.room_id,
+    title: row.title,
+    roomType: row.room_type,
+    coverImageUrl: row.cover_image || row.cover_image_url || null,
+    monthlyRent: Number(row.monthly_rent),
+    depositAmount: Number(row.deposit_amount),
+    addressSummary: row.detailed_address,
+    provinceName: row.province_name || null,
+    districtName: row.district_name || null,
+    wardName: row.ward_name || null,
+    formattedAddress: row.formatted_address || null,
+    placeId: row.place_id || null,
+    status: row.status,
+    averageRating: row.average_rating !== null ? Number(row.average_rating) : null,
+    longitude: row.longitude,
+    latitude: row.latitude,
+  }));
+
+  return { items: mappedItems, total, page: p, limit: l };
 }
 
 /**

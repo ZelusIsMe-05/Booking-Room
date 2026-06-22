@@ -22,10 +22,14 @@ function sendSuccess(res, { status = 200, message, data }) {
  * @param {object} options
  * @param {number} [options.status=500] HTTP status code
  * @param {string} options.message human-readable message
+ * @param {string} [options.code] optional machine-readable error code
  * @param {object} [options.data] optional extra payload (e.g. lockedUntil)
  */
-function sendError(res, { status = 500, message, data }) {
+function sendError(res, { status = 500, message, code, data }) {
   const body = { success: false, message };
+  if (code !== undefined) {
+    body.code = code;
+  }
   if (data !== undefined) {
     body.data = data;
   }

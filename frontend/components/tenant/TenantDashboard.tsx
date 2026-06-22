@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { authService } from '@/services/authService';
+import { roomService } from '@/services/roomService';
 import { bookingService, DepositResponse } from '@/services/bookingService';
+import ConfirmModal from '../common/ConfirmModal';
 
 type TabType = 'dashboard' | 'profile' | 'password' | 'deposits';
 
@@ -17,6 +19,9 @@ interface ExtendedDeposit extends DepositResponse {
 export default function TenantDashboard() {
   const { user, logout, refreshProfile } = useAuth();
   const router = useRouter();
+  const [checkingRoomId, setCheckingRoomId] = useState<string | null>(null);
+  const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   // Active tab state
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
@@ -184,21 +189,50 @@ export default function TenantDashboard() {
     }
   };
 
-  // Handle Cancel Deposit
-  const handleCancelDeposit = async (depositId: string) => {
-    if (window.confirm('Bạn có chắc chắn muốn hủy giao dịch đặt cọc này?')) {
-      try {
-        await bookingService.cancelDeposit(depositId, 'Người dùng chủ động hủy');
-        window.dispatchEvent(new CustomEvent('show-toast', {
-          detail: { message: 'Hủy giao dịch đặt cọc thành công!', type: 'success' }
-        }));
-        window.dispatchEvent(new Event('deposit-updated'));
-        fetchDeposits();
-      } catch (err: any) {
-        window.dispatchEvent(new CustomEvent('show-toast', {
-          detail: { message: err.message || 'Hủy giao dịch thất bại.', type: 'error' }
-        }));
+  // Handle View Room
+  const handleViewRoom = async (roomId: string) => {
+    if (checkingRoomId) return;
+    setCheckingRoomId(roomId);
+    try {
+      await roomService.getRoomById(roomId);
+      router.push(`/rooms/${roomId}`);
+    } catch (err: any) {
+      if (err.code !== 'ROOM_RENTED' && err.code !== 'ROOM_NOT_AVAILABLE') {
+        console.error('Error checking room access:', err);
       }
+      const msg = err.response?.data?.message || err.message || 'Lỗi tải thông tin phòng';
+      window.dispatchEvent(
+        new CustomEvent('show-toast', {
+          detail: { message: msg, type: 'error' }
+        })
+      );
+    } finally {
+      setCheckingRoomId(null);
+    }
+  };
+
+  // Handle Cancel Deposit
+  const triggerCancelDeposit = (depositId: string) => {
+    setCancelTargetId(depositId);
+  };
+
+  const confirmCancelDeposit = async () => {
+    if (!cancelTargetId) return;
+    setCancelLoading(true);
+    try {
+      await bookingService.cancelDeposit(cancelTargetId, 'Người dùng chủ động hủy');
+      window.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message: 'Đã hủy giao dịch đặt cọc thành công!', type: 'success' }
+      }));
+      window.dispatchEvent(new Event('deposit-updated'));
+      fetchDeposits();
+    } catch (err: any) {
+      window.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message: err.message || 'Hủy giao dịch thất bại.', type: 'error' }
+      }));
+    } finally {
+      setCancelLoading(false);
+      setCancelTargetId(null);
     }
   };
 
@@ -442,12 +476,13 @@ export default function TenantDashboard() {
                         </div>
                         <div className="flex items-center gap-3 self-end md:self-center shrink-0">
                           {renderStatusBadge(dep.status)}
-                          <Link
-                            href={`/rooms/${dep.room_id}`}
-                            className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-all"
+                          <button
+                            onClick={() => handleViewRoom(dep.room_id)}
+                            disabled={checkingRoomId !== null}
+                            className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-all disabled:opacity-50"
                           >
-                            {dep.status === 'PROCESSING' ? 'Thanh toán' : 'Xem phòng'}
-                          </Link>
+                            {checkingRoomId === dep.room_id ? '...' : (dep.status === 'PROCESSING' ? 'Thanh toán' : 'Xem phòng')}
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -830,14 +865,15 @@ export default function TenantDashboard() {
                           <div className="shrink-0 self-end md:self-start flex flex-col sm:flex-row md:flex-col items-end gap-2">
                             {dep.status === 'PROCESSING' && (
                               <>
-                                <Link
-                                  href={`/rooms/${dep.room_id}`}
-                                  className="px-4 py-2 text-xs font-bold text-white bg-[#0052CC] hover:bg-[#0043A8] rounded-lg transition-all shadow-sm text-center"
-                                >
-                                  Tiếp tục thanh toán
-                                </Link>
                                 <button
-                                  onClick={() => handleCancelDeposit(dep.deposit_id)}
+                                  onClick={() => handleViewRoom(dep.room_id)}
+                                  disabled={checkingRoomId !== null}
+                                  className="px-4 py-2 text-xs font-bold text-white bg-[#0052CC] hover:bg-[#0043A8] rounded-lg transition-all shadow-sm text-center disabled:opacity-50"
+                                >
+                                  {checkingRoomId === dep.room_id ? 'Đang kiểm tra...' : 'Tiếp tục thanh toán'}
+                                </button>
+                                <button
+                                  onClick={() => triggerCancelDeposit(dep.deposit_id)}
                                   className="px-4 py-2 text-xs font-bold text-red-600 hover:text-white bg-red-50 hover:bg-red-500 border border-red-200 hover:border-red-500 rounded-lg transition-all shadow-sm"
                                 >
                                   Hủy giao dịch
@@ -845,12 +881,13 @@ export default function TenantDashboard() {
                               </>
                             )}
                             {dep.status !== 'PROCESSING' && (
-                              <Link
-                                href={`/rooms/${dep.room_id}`}
-                                className="px-4 py-2 text-xs font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-all text-center"
+                              <button
+                                onClick={() => handleViewRoom(dep.room_id)}
+                                disabled={checkingRoomId !== null}
+                                className="px-4 py-2 text-xs font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-all text-center disabled:opacity-50"
                               >
-                                Xem chi tiết phòng
-                              </Link>
+                                {checkingRoomId === dep.room_id ? 'Đang kiểm tra...' : 'Xem chi tiết phòng'}
+                              </button>
                             )}
                           </div>
                         </div>
@@ -897,6 +934,13 @@ export default function TenantDashboard() {
         </div>
 
       </div>
+
+      <ConfirmModal
+        isOpen={cancelTargetId !== null}
+        onClose={() => setCancelTargetId(null)}
+        onConfirm={confirmCancelDeposit}
+        loading={cancelLoading}
+      />
     </div>
   );
 }

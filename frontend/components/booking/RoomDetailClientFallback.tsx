@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { notFound } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { roomService, mapBackendRoomToBookingRoom } from '@/services/roomService';
 import RoomDetailContent from './RoomDetailContent';
 
@@ -10,9 +10,10 @@ interface RoomDetailClientFallbackProps {
 }
 
 export default function RoomDetailClientFallback({ roomId }: RoomDetailClientFallbackProps) {
+  const router = useRouter();
   const [room, setRoom] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -23,12 +24,15 @@ export default function RoomDetailClientFallback({ roomId }: RoomDetailClientFal
         if (res && res.data) {
           setRoom(mapBackendRoomToBookingRoom(res.data));
         } else {
-          setError(true);
+          setErrorMsg('Không tìm thấy thông tin phòng.');
         }
-      } catch (err) {
+      } catch (err: any) {
         if (!active) return;
-        console.error('Client fallback room fetch failed:', err);
-        setError(true);
+        if (err.code !== 'ROOM_RENTED' && err.code !== 'ROOM_NOT_AVAILABLE') {
+          console.error('Client fallback room fetch failed:', err);
+        }
+        const msg = err.response?.data?.message || err.message || 'Lỗi tải thông tin phòng';
+        setErrorMsg(msg);
       } finally {
         if (active) {
           setLoading(false);
@@ -42,7 +46,16 @@ export default function RoomDetailClientFallback({ roomId }: RoomDetailClientFal
     };
   }, [roomId]);
 
-  if (loading) {
+  useEffect(() => {
+    if (errorMsg) {
+      window.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message: errorMsg, type: 'error' }
+      }));
+      router.push('/rooms');
+    }
+  }, [errorMsg, router]);
+
+  if (loading || errorMsg || !room) {
     return (
       <div className="min-h-screen bg-booking-surface flex flex-col items-center justify-center p-4">
         <div className="relative flex items-center justify-center">
@@ -54,11 +67,6 @@ export default function RoomDetailClientFallback({ roomId }: RoomDetailClientFal
         </p>
       </div>
     );
-  }
-
-  if (error || !room) {
-    notFound();
-    return null;
   }
 
   return <RoomDetailContent room={room} />;

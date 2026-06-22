@@ -110,90 +110,73 @@ async function getRoomById(roomId, user = null) {
     console.error('Error expiring overdue deposits during getRoomById:', err);
   }
 
-  let room;
-  if (user && (user.role === 'ADMIN' || user.role === 'LANDLORD')) {
-    // Admin or landlord could see non-public rooms if they own it.
-    // Fetch with user details joined.
-    room = await db('rooms as r')
-      .select(
-        'r.*',
-        'ra.approval_status',
-        'u.full_name as landlord_full_name',
-        'u.username as landlord_username',
-        'u.avatar_url as landlord_avatar_url',
-        'u.email as landlord_email',
-        'u.phone_number as landlord_phone_number',
-        'sec.created_at as landlord_created_at'
-      )
-      .leftJoin('room_approvals as ra', 'r.room_id', 'ra.room_id')
-      .leftJoin('users as u', 'u.user_id', 'r.landlord_id')
-      .leftJoin('account_security as sec', 'sec.user_id', 'u.user_id')
-      .where('r.room_id', roomId)
-      .first();
+  // Query room with landlord details and approvals joined
+  const rawRoom = await db('rooms as r')
+    .select(
+      'r.*',
+      'ra.approval_status',
+      'u.full_name as landlord_full_name',
+      'u.username as landlord_username',
+      'u.avatar_url as landlord_avatar_url',
+      'u.email as landlord_email',
+      'u.phone_number as landlord_phone_number',
+      'sec.created_at as landlord_created_at'
+    )
+    .leftJoin('room_approvals as ra', 'r.room_id', 'ra.room_id')
+    .leftJoin('users as u', 'u.user_id', 'r.landlord_id')
+    .leftJoin('account_security as sec', 'sec.user_id', 'u.user_id')
+    .where('r.room_id', roomId)
+    .first();
 
-    if (room) {
-      const isPublic = room.status === 'AVAILABLE' && room.approval_status === 'APPROVED';
-      const isAdmin = user.role === 'ADMIN';
-      const isOwner = user.role === 'LANDLORD' && room.landlord_id === user.userId;
-      if (!isPublic && !isAdmin && !isOwner) {
-        room = null; // Enforce security filter
-      }
-    }
+  if (!rawRoom) {
+    throw new AppError('NOT_FOUND', 'Không tìm thấy phòng.', 404);
+  }
+
+  // Find who rented the room if it's RENTED (most recent accepted deposit)
+  let tenantRentingId = null;
+  const acceptedDeposit = await db('deposits')
+    .where({ room_id: roomId, status: 'ACCEPTED' })
+    .orderBy('created_at', 'desc')
+    .first();
+  if (acceptedDeposit) {
+    tenantRentingId = acceptedDeposit.tenant_id;
+  }
+
+  let room = null;
+  const isAdmin = user && user.role === 'ADMIN';
+  const isOwner = user && user.role === 'LANDLORD' && rawRoom.landlord_id === user.userId;
+
+  if (isAdmin || isOwner) {
+    room = rawRoom;
   } else {
-    // For normal guests/tenants, strictly use the optimized public fetch
-    room = await roomRepository.findPublicById(roomId);
+    // Normal guest / tenant check
+    if (rawRoom.approval_status !== 'APPROVED') {
+      throw new AppError('ROOM_NOT_AVAILABLE', 'Phòng không khả dụng.', 400);
+    }
 
-    // If room is locked or not available publicly, check if this is a tenant with a pending deposit
-    if (!room && user && user.role === 'TENANT') {
-      const activeDeposit = await db('deposits')
-        .where({ tenant_id: user.userId, room_id: roomId, status: 'PROCESSING' })
-        .first();
-
-      if (activeDeposit) {
-        room = await db('rooms as r')
-          .select(
-            'r.room_id',
-            'r.landlord_id',
-            'r.title',
-            'r.room_type',
-            'r.detailed_address',
-            'r.province_name',
-            'r.district_name',
-            'r.ward_name',
-            'r.formatted_address',
-            'r.place_id',
-            'r.room_description',
-            'r.max_capacity',
-            'r.monthly_rent',
-            'r.deposit_amount',
-            'r.electricity_cost',
-            'r.water_cost',
-            'r.internet_cost',
-            'r.service_fee',
-            'r.status',
-            'r.average_rating',
-            'r.longitude',
-            'r.latitude',
-            'r.created_at',
-            'r.updated_at',
-            'u.full_name as landlord_full_name',
-            'u.username as landlord_username',
-            'u.avatar_url as landlord_avatar_url',
-            'u.email as landlord_email',
-            'u.phone_number as landlord_phone_number',
-            'sec.created_at as landlord_created_at'
-          )
-          .leftJoin('users as u', 'u.user_id', 'r.landlord_id')
-          .leftJoin('account_security as sec', 'sec.user_id', 'u.user_id')
-          .where('r.room_id', roomId)
-          .whereExists(function () {
-            this.select('*')
-              .from('room_approvals as ra')
-              .whereRaw('ra.room_id = r.room_id')
-              .andWhere('ra.approval_status', 'APPROVED');
-          })
+    if (rawRoom.status === 'AVAILABLE') {
+      room = rawRoom;
+    } else if (rawRoom.status === 'LOCKED') {
+      // Check if this tenant has an active processing deposit
+      if (user && user.role === 'TENANT') {
+        const activeDeposit = await db('deposits')
+          .where({ tenant_id: user.userId, room_id: roomId, status: 'PROCESSING' })
           .first();
+        if (activeDeposit) {
+          room = rawRoom;
+        }
       }
+      if (!room) {
+        throw new AppError('ROOM_NOT_AVAILABLE', 'Phòng không khả dụng.', 400);
+      }
+    } else if (rawRoom.status === 'RENTED') {
+      if (user && user.userId === tenantRentingId) {
+        room = rawRoom;
+      } else {
+        throw new AppError('ROOM_RENTED', 'Phòng này đã được thuê.', 400);
+      }
+    } else {
+      throw new AppError('ROOM_NOT_AVAILABLE', 'Phòng không khả dụng.', 400);
     }
   }
 
@@ -223,6 +206,7 @@ async function getRoomById(roomId, user = null) {
     internetCost: Number(room.internet_cost),
     serviceFee: Number(room.service_fee),
     status: room.status,
+    rentedBy: tenantRentingId,
     averageRating: room.average_rating !== null ? Number(room.average_rating) : null,
     longitude: room.longitude,
     latitude: room.latitude,

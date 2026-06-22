@@ -1,18 +1,17 @@
 'use client';
 
 import { Suspense, useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import BookingChatFab from '@/components/booking/BookingChatFab';
 import BookingFooter from '@/components/booking/BookingFooter';
 import BookingHeader from '@/components/booking/BookingHeader';
 import RoomCard from '@/components/booking/RoomCard';
-import SearchBento from '@/components/booking/SearchBento';
-import { roomService, mapBackendRoomToBookingRoom } from '@/services/roomService';
 import { favoriteService } from '@/services/favoriteService';
+import { mapBackendRoomToBookingRoom } from '@/services/roomService';
 import type { BookingRoom } from '@/data/bookingRooms';
 
-// Lazy-load RoomMap để tránh SSR error (Leaflet cần window object)
+// Lazy-load RoomMap to avoid SSR errors
 const RoomMap = dynamic(() => import('@/components/guest/RoomMap'), {
   ssr: false,
   loading: () => (
@@ -20,105 +19,53 @@ const RoomMap = dynamic(() => import('@/components/guest/RoomMap'), {
   ),
 });
 
-function SearchCriteriaSummary() {
-  const searchParams = useSearchParams();
-  const q = searchParams.get('q') || '';
-  const budget = searchParams.get('budget') || '';
-  const type = searchParams.get('type') || '';
-  const nearLat = searchParams.get('nearLat') || '';
-  const nearLng = searchParams.get('nearLng') || '';
-
-  if (!q && !budget && !type && !nearLat) return null;
-
-  return (
-    <div className="mt-3 p-3 rounded-xl bg-booking-surface border border-booking-border/60 text-xs sm:text-sm text-booking-muted font-medium flex flex-wrap gap-x-4 gap-y-1.5 items-center">
-      <span className="font-bold text-booking-primary">Kết quả tìm kiếm cho:</span>
-      {q && !nearLat && (
-        <span className="flex items-center gap-1 flex-wrap">
-          <strong>Khu vực:</strong> 
-          {q.split('|').map((loc, idx) => (
-            <span key={idx} className="bg-white border border-booking-border px-2 py-0.5 rounded-md text-booking-text font-semibold">
-              {loc}
-            </span>
-          ))}
-        </span>
-      )}
-      {nearLat && nearLng && (
-        <span className="flex items-center gap-1">
-          <strong>📍 Bán kính:</strong> <span className="bg-white border border-booking-border px-2 py-0.5 rounded-md text-booking-text font-semibold">5km quanh vị trí đã chọn</span>
-        </span>
-      )}
-      {budget && (
-        <span className="flex items-center gap-1">
-          <strong>Giá:</strong> <span className="bg-white border border-booking-border px-2 py-0.5 rounded-md text-booking-text font-semibold">{budget}</span>
-        </span>
-      )}
-      {type && (
-        <span className="flex items-center gap-1">
-          <strong>Loại:</strong> <span className="bg-white border border-booking-border px-2 py-0.5 rounded-md text-booking-text font-semibold">{type}</span>
-        </span>
-      )}
-    </div>
-  );
-}
-
-function RoomsPageContent() {
-  const searchParams = useSearchParams();
+function FavoritesPageContent() {
+  const router = useRouter();
   const [rooms, setRooms] = useState<BookingRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [currentPage, setCurrentPage] = useState(1);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
-
-  const q = searchParams.get('q') || '';
-  const budget = searchParams.get('budget') || '';
-  const type = searchParams.get('type') || '';
-  const nearLatStr = searchParams.get('nearLat') || '';
-  const nearLngStr = searchParams.get('nearLng') || '';
-  const nearLat = nearLatStr ? parseFloat(nearLatStr) : undefined;
-  const nearLng = nearLngStr ? parseFloat(nearLngStr) : undefined;
-  const searchCenter: [number, number] | null =
-    nearLat != null && nearLng != null && !isNaN(nearLat) && !isNaN(nearLng)
-      ? [nearLat, nearLng]
-      : null;
+  const [isLoggedIn, setIsLoggedIn] = useState(true);
 
   const ITEMS_PER_PAGE = 14;
 
   const fetchFavorites = async () => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
     if (!token) {
-      setFavoriteIds(new Set());
+      setIsLoggedIn(false);
+      setLoading(false);
       return;
     }
 
+    setLoading(true);
+    setError(null);
     try {
-      const res = await favoriteService.listFavorites({ limit: 50 });
+      const res = await favoriteService.listFavorites({ limit: 100 });
       if (res && res.data) {
         const items = res.data.items || [];
-        setFavoriteIds(new Set(items.map((r: any) => r.roomId)));
+        const mapped = items.map((room) => mapBackendRoomToBookingRoom(room));
+        setRooms(mapped);
+        setFavoriteIds(new Set(mapped.map((r) => r.id)));
+      } else {
+        setError(res?.message || 'Lỗi khi tải danh sách phòng yêu thích.');
       }
-    } catch (err) {
-      console.error('Error loading favorites on all listing page:', err);
+    } catch (err: any) {
+      console.error('Error fetching favorites page:', err);
+      setError('Không thể kết nối đến server backend.');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleToggleFavorite = async (roomId: string) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-    if (!token) {
-      window.dispatchEvent(
-        new CustomEvent('show-toast', {
-          detail: { message: 'Vui lòng đăng nhập để thêm phòng yêu thích.', type: 'error' }
-        })
-      );
-      return;
-    }
-
     try {
       const res = await favoriteService.toggleFavorite(roomId);
       if (res && res.data) {
         const action = res.data.action;
         if (action === 'ADDED') {
+          // Re-add if somehow toggled back
           setFavoriteIds((prev) => new Set([...prev, roomId]));
           window.dispatchEvent(
             new CustomEvent('show-toast', {
@@ -126,11 +73,13 @@ function RoomsPageContent() {
             })
           );
         } else {
+          // Remove from local list snappily
           setFavoriteIds((prev) => {
             const next = new Set(prev);
             next.delete(roomId);
             return next;
           });
+          setRooms((prev) => prev.filter((r) => r.id !== roomId));
           window.dispatchEvent(
             new CustomEvent('show-toast', {
               detail: { message: 'Đã xóa khỏi phòng yêu thích của bạn.', type: 'error' }
@@ -153,85 +102,58 @@ function RoomsPageContent() {
     fetchFavorites();
   }, []);
 
-  useEffect(() => {
-    async function fetchRooms() {
-      setLoading(true);
-      setError(null);
-      setCurrentPage(1);
-      try {
-        // Map UI budget string to minPrice / maxPrice numbers
-        let minPrice: number | undefined;
-        let maxPrice: number | undefined;
-        if (budget === 'Dưới 1 triệu') {
-          maxPrice = 1000000;
-        } else if (budget === '1 - 3 triệu') {
-          minPrice = 1000000;
-          maxPrice = 3000000;
-        } else if (budget === 'Trên 3 triệu') {
-          minPrice = 3000000;
-        }
-
-        // Fetch from backend API
-        const res = await roomService.listRooms({
-          location: (!nearLat && !nearLng && q) ? q : undefined,
-          roomType: type || undefined,
-          minPrice,
-          maxPrice,
-          nearLat,
-          nearLng,
-          radiusKm: nearLat != null ? 5 : undefined,
-        });
-
-        if (res && res.data) {
-          const items = res.data.items || [];
-          const mapped = items.map((room, idx) => mapBackendRoomToBookingRoom(room, idx));
-          setRooms(mapped);
-        } else {
-          setError(res?.message || 'Lỗi khi tải danh sách phòng');
-        }
-      } catch (err: any) {
-        console.error('Error fetching rooms:', err);
-        setError('Không thể kết nối đến server backend.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    
-    fetchRooms();
-  }, [q, budget, type, nearLatStr, nearLngStr]);
-
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const paginatedRooms = rooms.slice(startIndex, endIndex);
   const totalPages = Math.ceil(rooms.length / ITEMS_PER_PAGE);
 
+  if (!isLoggedIn) {
+    return (
+      <div className="mx-auto max-w-md py-20 px-4 text-center">
+        <div className="rounded-2xl border border-booking-border bg-white p-8 shadow-sm">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+            </svg>
+          </div>
+          <h2 className="mt-4 text-lg font-bold text-booking-text">Yêu cầu đăng nhập</h2>
+          <p className="mt-2 text-sm text-booking-muted">
+            Vui lòng đăng nhập để xem và quản lý danh sách phòng yêu thích của bạn.
+          </p>
+          <button
+            onClick={() => router.push('/auth/login')}
+            className="mt-6 w-full rounded-xl bg-booking-primary py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-booking-primaryDark"
+          >
+            Đăng nhập ngay
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-10">
+      {/* Header Section */}
       <section className="rounded-2xl border border-booking-border bg-white p-4 shadow-sm sm:p-6">
-        <div className="mb-5 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.08em] text-booking-primary">Tìm kiếm phòng</p>
-            <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Không gian phù hợp với nhịp sống của bạn</h1>
-            <Suspense fallback={null}>
-              <SearchCriteriaSummary />
-            </Suspense>
+            <p className="text-sm font-bold uppercase tracking-[0.08em] text-booking-primary">Danh sách của bạn</p>
+            <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Phòng yêu thích của bạn</h1>
           </div>
           <p className="max-w-xl text-sm leading-6 text-booking-muted">
-            Lọc nhanh theo khu vực và loại phòng.
+            Nơi lưu trữ những không gian sống bạn đã chọn và lưu lại để tiện theo dõi.
           </p>
         </div>
-        <SearchBento compact />
       </section>
 
       <section className="mt-8">
-        {/* Header: số phòng + toggle List/Map */}
+        {/* Sub-header: số lượng + toggle List/Map */}
         <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
           <h2 className="text-xl font-bold">
-            {loading ? 'Đang tìm kiếm...' : `${rooms.length} phòng phù hợp`}
+            {loading ? 'Đang tải...' : `${rooms.length} phòng yêu thích`}
           </h2>
 
           <div className="flex items-center gap-2">
-            {/* Nút toggle List / Map */}
             <div className="flex items-center rounded-xl border border-booking-border bg-white shadow-sm overflow-hidden">
               <button
                 id="view-list-btn"
@@ -264,16 +186,12 @@ function RoomsPageContent() {
                 <span className="hidden sm:inline">Bản đồ</span>
               </button>
             </div>
-
-            <span className="rounded-full border border-booking-border bg-white px-3 py-1 text-sm text-booking-muted hidden sm:block">
-              Sắp xếp: Đề xuất
-            </span>
           </div>
         </div>
 
         {loading ? (
-          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2">
-            {[1, 2, 3, 4].map((n) => (
+          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
+            {[1, 2, 3].map((n) => (
               <div key={n} className="animate-pulse rounded-2xl border border-booking-border bg-white overflow-hidden shadow-sm h-[320px]">
                 <div className="bg-slate-200 h-48 w-full" />
                 <div className="p-4 space-y-3">
@@ -290,11 +208,10 @@ function RoomsPageContent() {
           </div>
         ) : rooms.length === 0 ? (
           <div className="rounded-xl border border-dashed border-booking-border bg-white p-12 text-center text-booking-muted font-medium">
-            Không tìm thấy phòng nào phù hợp với điều kiện lọc của bạn.
+            Chưa có phòng yêu thích nào trong danh sách của bạn.
           </div>
         ) : viewMode === 'map' ? (
-          /* ---- Bản đồ ---- */
-          <RoomMap rooms={rooms} height={580} searchCenter={searchCenter} />
+          <RoomMap rooms={rooms} height={580} searchCenter={null} />
         ) : (
           <div className="space-y-8">
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -347,7 +264,7 @@ function RoomsPageContent() {
   );
 }
 
-export default function RoomsPage() {
+export default function FavoritesPage() {
   return (
     <div className="min-h-screen bg-booking-surface text-booking-text">
       <BookingHeader />
@@ -357,7 +274,7 @@ export default function RoomsPage() {
           <div className="h-80 bg-white rounded-2xl border border-booking-border" />
         </main>
       }>
-        <RoomsPageContent />
+        <FavoritesPageContent />
       </Suspense>
       <BookingFooter />
       <BookingChatFab />
