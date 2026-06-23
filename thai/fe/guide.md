@@ -90,7 +90,11 @@ Pattern mỗi tính năng: `repositories/host/*` → `services/host/*` → `cont
 
 ## 4. Còn TODO / đang là mock / chưa có endpoint
 
-- Nút **"Xuất báo cáo" / "Export PDF" / "Tạo hóa đơn"** (Transactions, Revenue) — chưa có API.
+- Nút **"Xuất báo cáo"** (Transactions, Revenue) — **đã có API** xuất CSV:
+  - `GET /api/host/transactions/export` (cùng filter `status/roomId/search/dateFrom`) → CSV (mã, khách, phòng, tiền cọc, hoa hồng 10%, thực nhận, trạng thái, ngày tạo/duyệt).
+  - `GET /api/host/revenue/export?search=` → CSV đối soát (mã, phòng, khách, thời gian, doanh thu, phí 10%, thực nhận).
+  - CSV kèm BOM UTF-8 (`utils/csvHelper.js`) để Excel đọc đúng tiếng Việt. FE tải qua `apiClient.downloadFile` (fetch blob + `<a download>`); wrapper `hostTransactionService.exportCsv` / `hostRevenueService.exportCsv`.
+- Nút **"Export PDF"** (chi tiết Transaction) — chưa có API. (Nút "Tạo hóa đơn" đã được gỡ khỏi trang Giao dịch.)
 - Nút **"Khiếu nại giao dịch" / "Liên hệ khách hàng"** — chưa nối.
 - Trang **Tin nhắn** (`/host/messages`) và một số trang khác vẫn dùng mock (xem `memory/host-integration-status.md`).
 - `data/hostTransactions.ts`, `data/hostTransactionDetails.ts`, `data/hostRevenue.ts`, `data/hostDashboard.ts`:

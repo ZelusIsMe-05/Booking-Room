@@ -203,8 +203,53 @@ async function getTransactionDetail(landlordId, depositId) {
   };
 }
 
+/**
+ * Build a CSV of all transactions matching the given filters.
+ * Returns { filename, csv } for the controller to stream as a download.
+ */
+async function exportTransactions(landlordId, query = {}) {
+  const rows = await transactionRepository.listAllByLandlord(landlordId, {
+    status: query.status && query.status !== 'all' ? query.status : undefined,
+    roomId: query.roomId && query.roomId !== 'all' ? query.roomId : undefined,
+    search: query.search ? String(query.search).trim() : undefined,
+    dateFrom: query.dateFrom || undefined,
+  });
+
+  const headers = [
+    'Mã giao dịch',
+    'Khách thuê',
+    'Phòng',
+    'Số tiền cọc (đ)',
+    'Hoa hồng (đ)',
+    'Thực nhận (đ)',
+    'Trạng thái',
+    'Ngày tạo',
+    'Ngày duyệt',
+  ];
+
+  const data = rows.map((row) => {
+    const gross = Number(row.deposit_amount) || 0;
+    const commission = Math.round(gross * COMMISSION_RATE);
+    return [
+      bookingCode(row.deposit_id),
+      row.tenant_name || '',
+      row.room_title || '',
+      gross,
+      commission,
+      gross - commission,
+      STATUS_LABEL[uiStatus(row.status)] || '',
+      formatDateTime(row.created_at),
+      row.host_accepted_at ? formatDateTime(row.host_accepted_at) : '',
+    ];
+  });
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  return { filename: `giao-dich-${stamp}.csv`, headers, rows: data };
+}
+
 module.exports = {
   listTransactions,
   getSummary,
   getTransactionDetail,
+  exportTransactions,
 };

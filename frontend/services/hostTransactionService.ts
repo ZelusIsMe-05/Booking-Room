@@ -102,4 +102,15 @@ export const hostTransactionService = {
   getDetail: async (id: string): Promise<ApiResponse<HostTransactionDetail>> => {
     return apiClient.get<ApiResponse<HostTransactionDetail>>(`/host/transactions/${id}`);
   },
+
+  /** Download the filtered transaction list as a CSV file. */
+  exportCsv: async (params: ListTransactionsParams = {}): Promise<void> => {
+    const query = new URLSearchParams();
+    if (params.status && params.status !== 'all') query.append('status', params.status);
+    if (params.roomId && params.roomId !== 'all') query.append('roomId', params.roomId);
+    if (params.search) query.append('search', params.search);
+    if (params.dateFrom) query.append('dateFrom', params.dateFrom);
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    return apiClient.downloadFile(`/host/transactions/export${qs}`, 'giao-dich.csv');
+  },
 };

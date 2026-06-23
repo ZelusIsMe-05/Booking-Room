@@ -534,8 +534,19 @@ export default function HostRevenuePage() {
     router.push('/auth/login');
   };
 
-  const handleExport = () => {
-    // TODO: call API GET /host/revenue/export?range=<range>
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await hostRevenueService.exportCsv(search.trim() || undefined);
+    } catch (err: any) {
+      window.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message: err?.message || 'Không xuất được báo cáo.', type: 'error' },
+      }));
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -624,12 +635,13 @@ export default function HostRevenuePage() {
               <button
                 type="button"
                 onClick={handleExport}
-                className="flex h-12 items-center justify-center gap-2 rounded-lg border border-[#C3C6D7] bg-white px-6 text-base leading-6 text-[#191B23] shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition hover:bg-[#F3F3FE]"
+                disabled={exporting}
+                className="flex h-12 items-center justify-center gap-2 rounded-lg border border-[#C3C6D7] bg-white px-6 text-base leading-6 text-[#191B23] shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition hover:bg-[#F3F3FE] disabled:opacity-60"
               >
                 <svg className="h-5 w-5 text-[#004AC6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
                 </svg>
-                Xuất báo cáo
+                {exporting ? 'Đang xuất...' : 'Xuất báo cáo'}
               </button>
             </div>
           </section>

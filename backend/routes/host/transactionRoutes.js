@@ -11,6 +11,9 @@ const transactionController = require('../../controllers/host/transactionControl
 // Summary cards (must be before /:id so it is not captured as an id).
 router.get('/summary', requireAuth, authorize('LANDLORD'), transactionController.getSummary);
 
+// Export the filtered list as CSV (must be before /:id).
+router.get('/export', requireAuth, authorize('LANDLORD'), transactionController.exportTransactions);
+
 // Paginated, filterable list.
 router.get('/', requireAuth, authorize('LANDLORD'), transactionController.listTransactions);
 

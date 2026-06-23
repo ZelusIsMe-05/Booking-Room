@@ -91,9 +91,29 @@ export default function HostTransactionsPage() {
   const [summary, setSummary] = useState<HostTransactionSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [exporting, setExporting] = useState(false);
+
   const handleLogout = async () => {
     await logout();
     router.push('/auth/login');
+  };
+
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await hostTransactionService.exportCsv({
+        status: statusFilter,
+        search: search.trim() || undefined,
+        dateFrom: dateFromForRange(selectedMonth),
+      });
+    } catch (err: any) {
+      window.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message: err?.message || 'Không xuất được báo cáo.', type: 'error' },
+      }));
+    } finally {
+      setExporting(false);
+    }
   };
 
   // Reset to first page whenever a filter changes.
@@ -231,21 +251,14 @@ export default function HostTransactionsPage() {
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                className="flex items-center gap-1 rounded-lg border border-[#C3C6D7] bg-white px-4 py-2 text-base font-semibold text-[#191B23] transition hover:bg-[#F3F3FE]"
+                onClick={handleExport}
+                disabled={exporting}
+                className="flex items-center gap-1 rounded-lg border border-[#C3C6D7] bg-white px-4 py-2 text-base font-semibold text-[#191B23] transition hover:bg-[#F3F3FE] disabled:opacity-60"
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1M12 12V4M8 8l4-4 4 4" />
                 </svg>
-                Xuất báo cáo
-              </button>
-              <button
-                type="button"
-                className="relative flex items-center gap-1 rounded-lg bg-[#004AC6] px-4 py-2 text-base font-semibold text-white shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-2px_rgba(0,0,0,0.1)] transition hover:bg-[#003fa3]"
-              >
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
-                </svg>
-                Tạo hóa đơn
+                {exporting ? 'Đang xuất...' : 'Xuất báo cáo'}
               </button>
             </div>
           </div>

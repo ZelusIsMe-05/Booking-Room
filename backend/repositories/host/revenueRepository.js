@@ -136,10 +136,41 @@ async function listSettlements(landlordId, { search, page = 1, limit = 8 } = {})
   return { items, total: Number(count) };
 }
 
+/** All settlement rows matching the filter, without pagination (for CSV export). */
+async function listAllSettlements(landlordId, { search } = {}) {
+  const q = db('deposits as d')
+    .join('rooms as r', 'd.room_id', 'r.room_id')
+    .join('users as u', 'd.tenant_id', 'u.user_id')
+    .where('d.landlord_id', landlordId)
+    .andWhere('d.status', 'ACCEPTED');
+  if (search) {
+    const kw = `%${search}%`;
+    q.where((b) => {
+      b.whereILike('r.title', kw)
+        .orWhereILike('u.full_name', kw)
+        .orWhereRaw('CAST(d.deposit_id AS TEXT) ILIKE ?', [kw]);
+    });
+  }
+
+  return q
+    .orderBy('d.host_accepted_at', 'desc')
+    .select(
+      'd.deposit_id',
+      'd.deposit_amount',
+      'd.status',
+      'd.created_at',
+      'd.confirmed_at',
+      'd.host_accepted_at',
+      'r.title as room_title',
+      'u.full_name as tenant_name',
+    );
+}
+
 module.exports = {
   summary,
   totalCompletedGross,
   statusBreakdown,
   monthlyTrend,
   listSettlements,
+  listAllSettlements,
 };

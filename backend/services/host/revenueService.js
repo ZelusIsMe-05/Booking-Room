@@ -162,7 +162,47 @@ async function listSettlements(landlordId, query = {}) {
   };
 }
 
+/**
+ * Build a CSV of all settlement rows matching the search filter.
+ * Returns { filename, headers, rows } for the controller to stream.
+ */
+async function exportSettlements(landlordId, query = {}) {
+  const rows = await revenueRepository.listAllSettlements(landlordId, {
+    search: query.search ? String(query.search).trim() : undefined,
+  });
+
+  const headers = [
+    'Mã đơn',
+    'Phòng',
+    'Khách thuê',
+    'Thời gian',
+    'Doanh thu (đ)',
+    'Phí hệ thống (đ)',
+    'Thực nhận (đ)',
+    'Trạng thái',
+  ];
+
+  const data = rows.map((row) => {
+    const gross = Number(row.deposit_amount) || 0;
+    const fee = Math.round(gross * COMMISSION_RATE);
+    return [
+      bookingCode(row.deposit_id),
+      row.room_title || '',
+      row.tenant_name || 'Khách',
+      stayPeriod(row),
+      gross,
+      fee,
+      gross - fee,
+      'Đã hoàn tất',
+    ];
+  });
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  return { filename: `doanh-thu-${stamp}.csv`, headers, rows: data };
+}
+
 module.exports = {
   getOverview,
   listSettlements,
+  exportSettlements,
 };

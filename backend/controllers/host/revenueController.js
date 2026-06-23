@@ -1,5 +1,6 @@
 const AppError = require('../../utils/AppError');
 const { sendSuccess } = require('../../utils/responseHelper');
+const { buildCsv } = require('../../utils/csvHelper');
 const revenueService = require('../../services/host/revenueService');
 
 async function getOverview(req, res, next) {
@@ -22,7 +23,21 @@ async function listSettlements(req, res, next) {
   }
 }
 
+async function exportSettlements(req, res, next) {
+  try {
+    const { filename, headers, rows } = await revenueService.exportSettlements(req.user.userId, req.query || {});
+    const csv = buildCsv(headers, rows);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.status(200).send(csv);
+  } catch (err) {
+    if (!(err instanceof AppError)) console.error('[host.revenueController.exportSettlements ERROR]', err);
+    return next(err instanceof AppError ? err : new AppError('UNEXPECTED', 'Đã xảy ra lỗi.', 500));
+  }
+}
+
 module.exports = {
   getOverview,
   listSettlements,
+  exportSettlements,
 };

@@ -13,4 +13,7 @@ router.get('/overview', requireAuth, authorize('LANDLORD'), revenueController.ge
 // Paginated settlement detail rows.
 router.get('/settlements', requireAuth, authorize('LANDLORD'), revenueController.listSettlements);
 
+// Export settlement rows as CSV.
+router.get('/export', requireAuth, authorize('LANDLORD'), revenueController.exportSettlements);
+
 module.exports = router;

@@ -76,6 +76,41 @@ async function listByLandlord(landlordId, { status, roomId, search, dateFrom, pa
   return { items, total: Number(count) };
 }
 
+/**
+ * All deposits matching the same filters as listByLandlord, without pagination.
+ * Used for exporting the full filtered set to CSV.
+ */
+async function listAllByLandlord(landlordId, { status, roomId, search, dateFrom } = {}) {
+  const q = baseListQuery(landlordId);
+  if (status && UI_STATUS_TO_DEPOSIT[status]) q.whereIn('d.status', UI_STATUS_TO_DEPOSIT[status]);
+  if (roomId) q.where('d.room_id', roomId);
+  if (dateFrom) q.where('d.created_at', '>=', dateFrom);
+  if (search) {
+    const kw = `%${search}%`;
+    q.where((b) => {
+      b.whereILike('u.full_name', kw)
+        .orWhereILike('r.title', kw)
+        .orWhereRaw('CAST(d.deposit_id AS TEXT) ILIKE ?', [kw]);
+    });
+  }
+
+  return q
+    .orderBy('d.created_at', 'desc')
+    .select(
+      'd.deposit_id',
+      'd.deposit_amount',
+      'd.status',
+      'd.appointment_time',
+      'd.created_at',
+      'd.confirmed_at',
+      'd.host_accepted_at',
+      'r.room_id',
+      'r.title as room_title',
+      'r.detailed_address as room_address',
+      'u.full_name as tenant_name',
+    );
+}
+
 /** Distinct rooms that have at least one deposit (for the room filter dropdown). */
 async function listRoomsWithDeposits(landlordId) {
   return db('deposits as d')
@@ -157,6 +192,7 @@ async function detailByLandlord(landlordId, depositId) {
 
 module.exports = {
   listByLandlord,
+  listAllByLandlord,
   listRoomsWithDeposits,
   summaryByLandlord,
   detailByLandlord,

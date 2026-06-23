@@ -1,5 +1,6 @@
 const AppError = require('../../utils/AppError');
 const { sendSuccess } = require('../../utils/responseHelper');
+const { buildCsv } = require('../../utils/csvHelper');
 const transactionService = require('../../services/host/transactionService');
 
 async function listTransactions(req, res, next) {
@@ -32,8 +33,22 @@ async function getTransactionDetail(req, res, next) {
   }
 }
 
+async function exportTransactions(req, res, next) {
+  try {
+    const { filename, headers, rows } = await transactionService.exportTransactions(req.user.userId, req.query || {});
+    const csv = buildCsv(headers, rows);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.status(200).send(csv);
+  } catch (err) {
+    if (!(err instanceof AppError)) console.error('[host.transactionController.exportTransactions ERROR]', err);
+    return next(err instanceof AppError ? err : new AppError('UNEXPECTED', 'Đã xảy ra lỗi.', 500));
+  }
+}
+
 module.exports = {
   listTransactions,
   getSummary,
   getTransactionDetail,
+  exportTransactions,
 };

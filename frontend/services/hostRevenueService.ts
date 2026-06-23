@@ -41,4 +41,12 @@ export const hostRevenueService = {
     const qs = query.toString() ? `?${query.toString()}` : '';
     return apiClient.get<ApiResponse<RevenueSettlementsResponse>>(`/host/revenue/settlements${qs}`);
   },
+
+  /** Download the settlement rows as a CSV file. */
+  exportCsv: async (search?: string): Promise<void> => {
+    const query = new URLSearchParams();
+    if (search) query.append('search', search);
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    return apiClient.downloadFile(`/host/revenue/export${qs}`, 'doanh-thu.csv');
+  },
 };
