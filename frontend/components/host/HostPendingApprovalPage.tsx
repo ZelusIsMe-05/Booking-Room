@@ -1,13 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import {
   idCardUploadFields,
   pendingApprovalNotes,
-  pendingApprovalSteps,
 } from '@/data/hostPendingApproval';
 import { hostProfileService } from '@/services/hostProfileService';
 
@@ -92,6 +91,29 @@ export default function HostPendingApprovalPage() {
   const [backFile, setBackFile] = useState<File | null>(null);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
   const [uploadMessage, setUploadMessage] = useState('');
+  const [frontPreview, setFrontPreview] = useState<string | null>(null);
+  const [backPreview, setBackPreview] = useState<string | null>(null);
+
+  // Hiển thị ảnh CCCD vừa chọn ngay trong khung tải lên; thu hồi object URL khi đổi/gỡ.
+  useEffect(() => {
+    if (!frontFile) {
+      setFrontPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(frontFile);
+    setFrontPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [frontFile]);
+
+  useEffect(() => {
+    if (!backFile) {
+      setBackPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(backFile);
+    setBackPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [backFile]);
 
   const handleLogout = async () => {
     await logout();
@@ -146,6 +168,15 @@ export default function HostPendingApprovalPage() {
       await submitWhenReady(nextFront, nextBack);
     };
 
+  // Sau khi gửi đủ 2 ảnh CCCD: bước "cung cấp CCCD" hoàn tất, chuyển sang chờ Admin duyệt.
+  const idCardSubmitted = uploadStatus === 'success';
+  const approvalSteps: { id: string; label: string; state: 'complete' | 'current' | 'locked' }[] = [
+    { id: 'registered', label: 'Đăng ký thành công', state: 'complete' },
+    { id: 'idcard', label: 'Đang chờ cung cấp CCCD', state: idCardSubmitted ? 'complete' : 'current' },
+    { id: 'review', label: 'Đang chờ Quản trị viên phê duyệt', state: idCardSubmitted ? 'current' : 'locked' },
+    { id: 'verified', label: 'Hoàn tất xác thực', state: 'locked' },
+  ];
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#FFF8F7] text-[#1E1B1B]">
       <div className="pointer-events-none absolute right-0 top-[390px] h-96 w-96 rounded-full bg-[#003F87]/5 blur-[50px]" />
@@ -160,13 +191,6 @@ export default function HostPendingApprovalPage() {
           />
           <div className="min-w-0">
             <p className="truncate text-base font-normal leading-5 text-[#A73A00]">{displayName}</p>
-            <p className="flex items-center gap-1 text-[10px] leading-[15px] text-[#424752]">
-              <svg className="h-3 w-3 text-[#004C32]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-5" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l7 4v5c0 4.2-2.8 7.2-7 9-4.2-1.8-7-4.8-7-9V7z" />
-              </svg>
-              Tài khoản xác thực
-            </p>
           </div>
         </div>
 
@@ -245,16 +269,15 @@ export default function HostPendingApprovalPage() {
               <h1 className="mb-4 text-base font-normal leading-6 text-[#003F87]">
                 Tài khoản đang chờ phê duyệt
               </h1>
-              <p className="max-w-[672px] text-base leading-6 text-[#424752]">
-                Cảm ơn bạn đã tin tưởng <strong className="font-normal text-[#003F87]">An Tâm Booking</strong>. Đội ngũ quản trị viên đang tiến hành kiểm tra thông tin định danh và giấy tờ sở hữu của bạn. Quy trình này thường mất từ{' '}
-                <strong className="font-normal text-[#A73A00]">12-24 giờ làm việc.</strong>
-              </p>
 
               <div className="relative mt-16 w-full max-w-[768px] pb-14">
-                <div className="absolute left-1/4 right-1/4 top-6 h-0.5 bg-[#C2C6D4]" />
-                <div className="absolute left-1/4 top-6 h-0.5 w-1/4 bg-[#006645]" />
-                <div className="relative grid grid-cols-1 gap-8 sm:grid-cols-3 sm:gap-0">
-                  {pendingApprovalSteps.map((step) => (
+                <div className="absolute left-[12.5%] right-[12.5%] top-6 h-0.5 bg-[#C2C6D4]" />
+                <div
+                  className="absolute left-[12.5%] top-6 h-0.5 bg-[#006645] transition-all"
+                  style={{ width: idCardSubmitted ? '50%' : '25%' }}
+                />
+                <div className="relative grid grid-cols-1 gap-8 sm:grid-cols-4 sm:gap-0">
+                  {approvalSteps.map((step) => (
                     <div key={step.id} className="flex flex-col items-center gap-3">
                       <div
                         className={`flex h-12 w-12 items-center justify-center rounded-full shadow-md ${
@@ -295,10 +318,11 @@ export default function HostPendingApprovalPage() {
                 <div className="mt-6 grid gap-6 md:grid-cols-2">
                   {idCardUploadFields.map((field) => {
                     const file = field.id === 'front' ? frontFile : backFile;
+                    const preview = field.id === 'front' ? frontPreview : backPreview;
                     return (
                       <div key={field.id} className="space-y-3">
                         <p className="text-base font-semibold leading-6 text-[#1E1B1B]">{field.label}</p>
-                        <label className="flex h-[137px] cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-[#C2C6D4] bg-white/50 p-6 text-center transition hover:border-[#0056B3] hover:bg-white">
+                        <label className="flex h-[137px] cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed border-[#C2C6D4] bg-white/50 p-3 text-center transition hover:border-[#0056B3] hover:bg-white">
                           <input
                             type="file"
                             accept="image/jpeg,image/png"
@@ -306,13 +330,26 @@ export default function HostPendingApprovalPage() {
                             onChange={handleFileChange(field.id)}
                             disabled={uploadStatus === 'uploading'}
                           />
-                          <CameraPlusIcon />
-                          <span className="text-base font-bold leading-6 text-[#003F87]">
-                            {file ? 'Đổi ảnh' : 'Tải lên'}
-                          </span>
-                          <span className="max-w-full truncate text-xs leading-[18px] text-[#424752]">
-                            {file ? file.name : 'Định dạng: JPG, PNG. Tối đa 5MB.'}
-                          </span>
+                          {preview ? (
+                            <>
+                              <img
+                                src={preview}
+                                alt={field.label}
+                                className="h-[88px] w-full rounded-lg object-contain"
+                              />
+                              <span className="text-base font-bold leading-6 text-[#003F87]">Đổi ảnh</span>
+                            </>
+                          ) : (
+                            <>
+                              <CameraPlusIcon />
+                              <span className="text-base font-bold leading-6 text-[#003F87]">
+                                {file ? 'Đổi ảnh' : 'Tải lên'}
+                              </span>
+                              <span className="max-w-full truncate text-xs leading-[18px] text-[#424752]">
+                                {file ? file.name : 'Định dạng: JPG, PNG. Tối đa 5MB.'}
+                              </span>
+                            </>
+                          )}
                         </label>
                       </div>
                     );

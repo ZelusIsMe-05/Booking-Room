@@ -579,7 +579,7 @@ function randomPasswordHash() {
  *   provider = lowercase (google|facebook|github)
  * @returns {Promise<{ user: object, tokens: object, isNewUser: boolean }>}
  */
-async function loginWithOAuth({ provider, code, redirectUri, ipAddress, userAgent }) {
+async function loginWithOAuth({ provider, code, redirectUri, role: roleName = ROLES.TENANT, ipAddress, userAgent }) {
   const profile = await oauthProviders.getProfile({ provider, code, redirectUri });
 
   // Chỉ chấp nhận khi có email đã xác thực (chống chiếm tài khoản theo email).
@@ -613,10 +613,11 @@ async function loginWithOAuth({ provider, code, redirectUri, ipAddress, userAgen
       });
       userId = existing.user_id;
     } else {
-      // 3. Tạo user mới (ACTIVE, TENANT, mật khẩu ngẫu nhiên, username tự sinh).
-      const role = await authRepository.getRoleIdByName(ROLES.TENANT);
+      // 3. Tạo user mới (ACTIVE, role theo lựa chọn đăng ký, mật khẩu ngẫu nhiên, username tự sinh).
+      const requestedRole = roleName === ROLES.LANDLORD ? ROLES.LANDLORD : ROLES.TENANT;
+      const role = await authRepository.getRoleIdByName(requestedRole);
       if (!role) {
-        throw new AppError('ROLE_NOT_FOUND', 'Vai trò TENANT chưa được cấu hình.', 500);
+        throw new AppError('ROLE_NOT_FOUND', `Vai trò ${requestedRole} chưa được cấu hình.`, 500);
       }
       const username = await generateUniqueUsername(email);
       const passwordHash = await randomPasswordHash();
@@ -627,6 +628,7 @@ async function loginWithOAuth({ provider, code, redirectUri, ipAddress, userAgen
         avatarUrl: profile.avatarUrl,
         passwordHash,
         roleId: role.role_id,
+        roleName: requestedRole,
         provider: profile.provider,
         providerUserId: profile.providerUserId,
       });

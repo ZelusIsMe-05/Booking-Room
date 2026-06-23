@@ -374,7 +374,7 @@ export default function RegisterPage() {
             hoặc tiếp tục với
             <span className="h-px flex-1 bg-booking-border" />
           </div>
-          <SocialButtons mode="Đăng ký" />
+          <SocialButtons mode="Đăng ký" role={role} />
           <p className="mt-6 text-center text-sm text-booking-muted">
             Đã có tài khoản?{' '}
             <Link href="/auth/login" className="font-bold text-booking-primary">

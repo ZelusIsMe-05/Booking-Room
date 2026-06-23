@@ -180,6 +180,10 @@ const resetPasswordSchema = z
 const oauthLoginSchema = z.object({
   code: z.string({ error: 'Thiếu mã uỷ quyền.' }).trim().min(1, 'Thiếu mã uỷ quyền.'),
   redirectUri: z.string({ error: 'Thiếu redirectUri.' }).trim().url('redirectUri không hợp lệ.'),
+  // Chỉ dùng khi tạo user OAuth mới; user đã tồn tại giữ nguyên vai trò hiện có.
+  role: z.enum(['TENANT', 'LANDLORD'], {
+    errorMap: () => ({ message: 'Vai trò đăng ký không hợp lệ.' }),
+  }).default('TENANT'),
 });
 
 // POST /api/auth/login

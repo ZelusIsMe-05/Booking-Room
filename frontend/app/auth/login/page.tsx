@@ -41,8 +41,11 @@ export default function LoginPage() {
           let success = false;
           try {
             const redirectUri = `${window.location.origin}/auth/login`;
-            const data = await loginWithOAuth(provider, code, redirectUri);
+            const storedRole = localStorage.getItem('oauth_role');
+            const role = storedRole === 'LANDLORD' ? 'LANDLORD' : 'TENANT';
+            const data = await loginWithOAuth(provider, code, redirectUri, role);
             localStorage.removeItem('oauth_provider');
+            localStorage.removeItem('oauth_role');
             success = true;
             router.push(data?.user?.role === 'LANDLORD' ? '/host' : '/');
           } catch (err: any) {

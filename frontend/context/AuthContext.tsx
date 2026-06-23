@@ -10,7 +10,7 @@ interface AuthContextType {
   login: (identifier: string, password: string) => Promise<User>;
   logout: () => void | Promise<void>;
   refreshProfile: () => Promise<void>;
-  loginWithOAuth: (provider: string, code: string, redirectUri: string) => Promise<any>;
+  loginWithOAuth: (provider: string, code: string, redirectUri: string, role?: 'TENANT' | 'LANDLORD') => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -81,8 +81,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return loggedInUser;
   };
 
-  const loginWithOAuth = async (provider: string, code: string, redirectUri: string) => {
-    const response = await authService.loginWithOAuth(provider, code, redirectUri);
+  const loginWithOAuth = async (provider: string, code: string, redirectUri: string, role?: 'TENANT' | 'LANDLORD') => {
+    const response = await authService.loginWithOAuth(provider, code, redirectUri, role);
     const { accessToken, refreshToken, user: loggedInUser } = response.data;
     
     if (typeof window !== 'undefined') {
