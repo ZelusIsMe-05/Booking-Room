@@ -70,7 +70,13 @@ async function approveRoom(roomId, adminId) {
     if (!room) {
       throw new AppError('NOT_FOUND', 'Không tìm thấy phòng', 404);
     }
-    if (room.approval_status !== 'PENDING') {
+    // Một phòng có thể có nhiều dòng room_approvals (APPROVED cũ + PENDING mới
+    // sau khi host sửa). room.approval_status từ findById chỉ là 1 dòng join
+    // ngẫu nhiên nên không tin cậy được — kiểm tra trực tiếp có dòng PENDING không.
+    const pending = await trx('room_approvals')
+      .where({ room_id: roomId, approval_status: 'PENDING' })
+      .first();
+    if (!pending) {
       throw new AppError('CONFLICT', 'Phòng không ở trạng thái chờ duyệt', 409);
     }
 
@@ -106,7 +112,12 @@ async function rejectRoom(roomId, adminId, reason) {
     if (!room) {
       throw new AppError('NOT_FOUND', 'Không tìm thấy phòng', 404);
     }
-    if (room.approval_status !== 'PENDING') {
+    // Xem chú thích ở approveRoom: kiểm tra trực tiếp dòng PENDING thay vì dựa
+    // vào room.approval_status (chỉ là 1 dòng join ngẫu nhiên khi có nhiều dòng).
+    const pending = await trx('room_approvals')
+      .where({ room_id: roomId, approval_status: 'PENDING' })
+      .first();
+    if (!pending) {
       throw new AppError('CONFLICT', 'Phòng không ở trạng thái chờ duyệt', 409);
     }
 

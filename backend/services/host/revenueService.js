@@ -21,7 +21,17 @@ function rangeWindow(range) {
   let prevStart;
   let prevEnd;
 
-  if (range === 'year') {
+  if (range === 'week') {
+    // ISO week: Monday → Monday.
+    const day = now.getDay(); // 0 = Sunday … 6 = Saturday
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    start = new Date(y, m, now.getDate() + diffToMonday);
+    end = new Date(start);
+    end.setDate(start.getDate() + 7);
+    prevStart = new Date(start);
+    prevStart.setDate(start.getDate() - 7);
+    prevEnd = new Date(start);
+  } else if (range === 'year') {
     start = new Date(y, 0, 1);
     end = new Date(y + 1, 0, 1);
     prevStart = new Date(y - 1, 0, 1);
@@ -49,13 +59,15 @@ function rangeWindow(range) {
 }
 
 async function getOverview(landlordId, range = 'month') {
-  const normalized = ['month', 'quarter', 'year'].includes(range) ? range : 'month';
+  const normalized = ['week', 'month', 'quarter', 'year'].includes(range) ? range : 'month';
   const win = rangeWindow(normalized);
 
-  const [s, trendRows] = await Promise.all([
+  const [s, trendRows, totalGross, statusCounts] = await Promise.all([
     revenueRepository.summary(landlordId, win),
     // Trend always shows the last 6 months regardless of range.
     revenueRepository.monthlyTrend(landlordId, new Date(new Date().getFullYear(), new Date().getMonth() - 5, 1).toISOString()),
+    revenueRepository.totalCompletedGross(landlordId),
+    revenueRepository.statusBreakdown(landlordId, win),
   ]);
 
   const paidThis = net(s.paid_gross);
@@ -67,10 +79,13 @@ async function getOverview(landlordId, range = 'month') {
       : 0;
 
   const summary = {
+    // Net revenue across ALL completed (ACCEPTED) deposits, all-time.
+    totalRevenue: net(totalGross),
     paidRevenue: paidThis,
     pendingSettlement: net(s.pending_gross),
     completedOrders: Number(s.completed_orders) || 0,
     growthRate,
+    statusBreakdown: statusCounts,
   };
 
   // Build 6 month buckets (oldest → newest), filling gaps with zero.
@@ -133,13 +148,14 @@ async function listSettlements(landlordId, query = {}) {
         id: bookingCode(row.deposit_id),
         depositId: row.deposit_id,
         roomTitle: row.room_title,
+        tenantName: row.tenant_name || 'Khách',
         imageSrc: row.cover_image_url || '/images/booking/host/studio-apartment.png',
         imageAlt: row.room_title,
         stayPeriod: stayPeriod(row),
         customerPayment: gross,
         platformFee: -fee,
         netAmount: gross - fee,
-        status: row.status === 'ACCEPTED' ? 'completed' : 'pending',
+        status: 'completed',
       };
     }),
     pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },

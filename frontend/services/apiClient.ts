@@ -120,8 +120,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const apiClient = {
-  get: <T>(endpoint: string, options?: RequestInit) => 
-    request<T>(endpoint, { ...options, method: 'GET' }),
+  get: <T>(endpoint: string, options?: RequestInit) =>
+    // no-store: tránh browser trả dữ liệu GET cũ sau khi vừa cập nhật (PATCH/POST).
+    request<T>(endpoint, { cache: 'no-store', ...options, method: 'GET' }),
     
   post: <T>(endpoint: string, body?: any, options?: RequestInit) => 
     request<T>(endpoint, { 

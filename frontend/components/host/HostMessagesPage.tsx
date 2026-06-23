@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useSocket } from '@/context/SocketContext';
 import HostSidebar from '@/components/host/HostSidebar';
@@ -173,6 +173,8 @@ export default function HostMessagesPage() {
   const { user, logout } = useAuth();
   const { socket } = useSocket();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const peerParam = searchParams.get('peer');
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
@@ -187,7 +189,9 @@ export default function HostMessagesPage() {
 
   const myUserId = user?.userId;
 
-  // Load conversation list on mount.
+  // Load conversation list on mount. When a `?peer=<userId>` param is present
+  // (e.g. arriving from a transaction's "Chat với khách" button), open — or
+  // create — the conversation with that tenant and select it.
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -196,7 +200,25 @@ export default function HostMessagesPage() {
       try {
         const res = await conversationService.listConversations();
         if (cancelled) return;
-        const list = res.data || [];
+        let list = res.data || [];
+
+        if (peerParam) {
+          let target = list.find((c) => c.peer_user_id === peerParam);
+          if (!target) {
+            const initRes = await conversationService.initConversation(peerParam);
+            if (cancelled) return;
+            if (initRes.data) {
+              target = initRes.data;
+              // Avoid duplicates if the conversation already existed server-side.
+              list = [target, ...list.filter((c) => c.conversation_id !== target!.conversation_id)];
+            }
+          }
+          setConversations(list);
+          if (target) setActiveConvId(target.conversation_id);
+          else if (list.length > 0) setActiveConvId((prev) => prev ?? list[0].conversation_id);
+          return;
+        }
+
         setConversations(list);
         if (list.length > 0) setActiveConvId((prev) => prev ?? list[0].conversation_id);
       } catch (err: any) {
@@ -209,7 +231,7 @@ export default function HostMessagesPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [peerParam]);
 
   // Load messages whenever the active conversation changes.
   const loadMessages = useCallback(async (convId: string) => {

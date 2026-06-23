@@ -30,7 +30,7 @@ export default function BookingManageCard({ listing, onToggleVisibility, togglin
           : 'Hiển thị lại tin đăng';
   return (
     <article
-      className={`group overflow-hidden rounded-xl border border-booking-border/20 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] ${
+      className={`group overflow-hidden rounded-xl border border-booking-border/20 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-all duration-300 ease-out hover:-translate-y-1.5 hover:shadow-[0_12px_28px_rgba(0,0,0,0.12)] ${
         listing.status === 'rented' ? 'opacity-80' : ''
       }`}
     >
@@ -136,7 +136,8 @@ export default function BookingManageCard({ listing, onToggleVisibility, togglin
 
           <div className="flex items-center gap-2 text-booking-muted">
             <Link
-              href={`/host/listings/${listing.id}/edit`}
+              href={`/host/listings/${listing.id}/edit?r=${Date.now()}`}
+              prefetch={false}
               aria-label={`Chỉnh sửa ${listing.title}`}
               title="Chỉnh sửa"
               className="flex h-9 w-9 items-center justify-center rounded-lg transition hover:bg-[#f3f3fe] hover:text-booking-primary"

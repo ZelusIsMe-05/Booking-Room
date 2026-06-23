@@ -216,6 +216,8 @@ async function updateRoom(landlordId, roomId, payload = {}, files = []) {
       break;
     }
   }
+  // Đổi địa chỉ/vị trí cũng phải duyệt lại (locationChanged do buildPatch tính sẵn).
+  if (locationChanged) needApprovalReset = true;
   if (files && files.length) needApprovalReset = true;
 
   return db.transaction(async (trx) => {
@@ -251,6 +253,14 @@ async function updateRoom(landlordId, roomId, payload = {}, files = []) {
     }
 
     if (needApprovalReset) {
+      // room_approvals không lưu snapshot nội dung và rooms chỉ giữ 1 bản ghi
+      // (trạng thái mới nhất), nên giữ nhiều dòng là vô nghĩa:
+      //  - nhiều PENDING ⇒ admin thấy cùng 1 phòng nhiều lần;
+      //  - còn dòng APPROVED cũ ⇒ findPublicById vẫn cho phòng hiển thị công
+      //    khai với nội dung vừa sửa dù CHƯA được duyệt lại.
+      // Xoá sạch approval cũ rồi chèn đúng 1 dòng PENDING ⇒ luôn chỉ có 1 yêu
+      // cầu duyệt (cái mới nhất có hiệu lực) và phòng ẩn khỏi public tới khi duyệt.
+      await trx('room_approvals').where({ room_id: roomId }).del();
       await trx('room_approvals').insert({ room_id: roomId, approval_status: 'PENDING' });
     }
 

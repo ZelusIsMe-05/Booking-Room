@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import HostSidebar from '@/components/host/HostSidebar';
@@ -379,25 +378,16 @@ export default function HostTransactionsPage() {
                 <thead>
                   <tr className="border-b border-[#C3C6D7] bg-[#F3F3FE]">
                     <th className="px-4 py-4 text-left text-xs font-bold tracking-[0.6px] text-[#434655]">
-                      MÃ ĐẶT PHÒNG
-                    </th>
-                    <th className="px-4 py-4 text-left text-xs font-bold tracking-[0.6px] text-[#434655]">
                       KHÁCH HÀNG
                     </th>
                     <th className="px-4 py-4 text-left text-xs font-bold tracking-[0.6px] text-[#434655]">
                       TÊN PHÒNG
-                    </th>
-                    <th className="px-4 py-4 text-left text-xs font-bold tracking-[0.6px] text-[#434655]">
-                      THỜI GIAN Ở
                     </th>
                     <th className="px-4 py-4 text-right text-xs font-bold tracking-[0.6px] text-[#434655]">
                       TỔNG TIỀN
                     </th>
                     <th className="px-4 py-4 text-left text-xs font-bold tracking-[0.6px] text-[#434655]">
                       TRẠNG THÁI
-                    </th>
-                    <th className="px-4 py-4 text-left text-xs font-bold tracking-[0.6px] text-[#434655]">
-                      HÀNH ĐỘNG
                     </th>
                   </tr>
                 </thead>
@@ -407,20 +397,11 @@ export default function HostTransactionsPage() {
                   {paginated.map((txn, idx) => (
                     <tr
                       key={txn.id}
-                      className={`border-b border-[#C3C6D7] transition hover:bg-[#F3F3FE]/50 ${
+                      onClick={() => router.push(`/host/transactions/${txn.id}`)}
+                      className={`cursor-pointer border-b border-[#C3C6D7] transition hover:bg-[#F3F3FE] ${
                         idx === paginated.length - 1 ? 'border-b-0' : ''
                       }`}
                     >
-                      {/* Booking code */}
-                      <td className="px-4 py-6">
-                        <Link
-                          href={`/host/transactions/${txn.id}`}
-                          className="text-base font-bold leading-5 text-[#004AC6] hover:underline"
-                        >
-                          {txn.bookingCode}
-                        </Link>
-                      </td>
-
                       {/* Tenant */}
                       <td className="px-4 py-6">
                         <div className="flex items-center gap-2">
@@ -440,18 +421,6 @@ export default function HostTransactionsPage() {
                         </span>
                       </td>
 
-                      {/* Duration */}
-                      <td className="px-4 py-6">
-                        <div className="flex flex-col">
-                          <span className="text-base leading-5 text-[#191B23]">
-                            {txn.checkIn} - {txn.checkOut}
-                          </span>
-                          <span className="mt-1 text-[11px] leading-[14px] text-[#434655]">
-                            {txn.nights} đêm, {txn.guests} khách
-                          </span>
-                        </div>
-                      </td>
-
                       {/* Amount */}
                       <td className="px-4 py-6 text-right">
                         <span className="text-base font-bold leading-5 text-[#191B23]">
@@ -463,29 +432,13 @@ export default function HostTransactionsPage() {
                       <td className="px-4 py-6">
                         <StatusBadge status={txn.status} />
                       </td>
-
-                      {/* Action */}
-                      <td className="px-4 py-6">
-                        <Link
-                          href={`/host/transactions/${txn.id}`}
-                          aria-label={`Xem chi tiết ${txn.bookingCode}`}
-                          title="Xem chi tiết"
-                          className="flex h-8 w-8 items-center justify-center rounded-full text-[#004AC6] transition hover:bg-[#EEF3FF]"
-                        >
-                          <svg className="h-[14px] w-[14px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-                            <rect x="9" y="3" width="6" height="4" rx="1" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6M9 16h4" />
-                          </svg>
-                        </Link>
-                      </td>
                     </tr>
                   ))}
 
                   {/* Loading / empty state */}
                   {paginated.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-16 text-center text-base text-[#434655]">
+                      <td colSpan={4} className="px-4 py-16 text-center text-base text-[#434655]">
                         {loading ? 'Đang tải giao dịch...' : 'Không tìm thấy giao dịch phù hợp.'}
                       </td>
                     </tr>

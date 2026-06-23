@@ -39,6 +39,41 @@ async function summary(landlordId, { start, end, prevStart, prevEnd }) {
 }
 
 /**
+ * All-time accepted (completed) gross revenue for a landlord.
+ * The service applies the commission to get the net total.
+ */
+async function totalCompletedGross(landlordId) {
+  const row = await db('deposits as d')
+    .where('d.landlord_id', landlordId)
+    .andWhere('d.status', 'ACCEPTED')
+    .select(db.raw('COALESCE(SUM(d.deposit_amount), 0)::float as gross'))
+    .first();
+  return Number(row?.gross) || 0;
+}
+
+/**
+ * Count of deposits by outcome within a window (dated by created_at), for the
+ * status-breakdown pie chart: completed / processing / failed.
+ */
+async function statusBreakdown(landlordId, { start, end }) {
+  const row = await db('deposits as d')
+    .where('d.landlord_id', landlordId)
+    .andWhere('d.created_at', '>=', start)
+    .andWhere('d.created_at', '<', end)
+    .select(
+      db.raw(`COUNT(*) FILTER (WHERE d.status = 'ACCEPTED')::int as completed`),
+      db.raw(`COUNT(*) FILTER (WHERE d.status IN ('PROCESSING','CONFIRMED'))::int as processing`),
+      db.raw(`COUNT(*) FILTER (WHERE d.status IN ('REJECTED','CANCELLED','EXPIRED'))::int as failed`),
+    )
+    .first();
+  return {
+    completed: Number(row?.completed) || 0,
+    processing: Number(row?.processing) || 0,
+    failed: Number(row?.failed) || 0,
+  };
+}
+
+/**
  * Monthly accepted-revenue totals from `fromDate` onwards (for the trend chart).
  * @returns {Promise<Array<{ year: number, month: number, gross: number }>>}
  */
@@ -62,15 +97,19 @@ async function listSettlements(landlordId, { search, page = 1, limit = 8 } = {})
   const build = () => {
     const q = db('deposits as d')
       .join('rooms as r', 'd.room_id', 'r.room_id')
+      .join('users as u', 'd.tenant_id', 'u.user_id')
       .leftJoin('room_images as ri', function () {
         this.on('ri.room_id', 'r.room_id').andOnVal('ri.is_cover', '=', true);
       })
       .where('d.landlord_id', landlordId)
-      .whereIn('d.status', ['CONFIRMED', 'ACCEPTED']);
+      // Only successful (completed) transactions are surfaced here.
+      .andWhere('d.status', 'ACCEPTED');
     if (search) {
       const kw = `%${search}%`;
       q.where((b) => {
-        b.whereILike('r.title', kw).orWhereRaw('CAST(d.deposit_id AS TEXT) ILIKE ?', [kw]);
+        b.whereILike('r.title', kw)
+          .orWhereILike('u.full_name', kw)
+          .orWhereRaw('CAST(d.deposit_id AS TEXT) ILIKE ?', [kw]);
       });
     }
     return q;
@@ -79,7 +118,7 @@ async function listSettlements(landlordId, { search, page = 1, limit = 8 } = {})
   const [{ count }] = await build().clone().count('d.deposit_id as count');
 
   const items = await build()
-    .orderBy('d.created_at', 'desc')
+    .orderBy('d.host_accepted_at', 'desc')
     .limit(limit)
     .offset(offset)
     .select(
@@ -90,6 +129,7 @@ async function listSettlements(landlordId, { search, page = 1, limit = 8 } = {})
       'd.confirmed_at',
       'd.host_accepted_at',
       'r.title as room_title',
+      'u.full_name as tenant_name',
       'ri.image_url as cover_image_url',
     );
 
@@ -98,6 +138,8 @@ async function listSettlements(landlordId, { search, page = 1, limit = 8 } = {})
 
 module.exports = {
   summary,
+  totalCompletedGross,
+  statusBreakdown,
   monthlyTrend,
   listSettlements,
 };

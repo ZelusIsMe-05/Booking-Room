@@ -62,13 +62,14 @@ export interface HostTransactionDetail {
   commission: number;
   netPayout: number;
   customer: {
+    userId: string;
     name: string;
     avatarSrc: string;
     phone: string;
     email: string;
     completedBookings: number;
   };
-  room: { id: string; title: string; address: string; imageSrc: string };
+  room: { id: string; code: string; title: string; address: string; imageSrc: string };
   timeline: HostTransactionTimelineItem[];
 }
 

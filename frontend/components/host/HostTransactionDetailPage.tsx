@@ -11,6 +11,14 @@ function formatTransactionVND(amount: number): string {
   return (Number(amount) || 0).toLocaleString('vi-VN') + 'đ';
 }
 
+// Status badge colours, matching the tone used across the Host area.
+const STATUS_BADGE: Record<string, string> = {
+  completed: 'bg-[#86F2E4] text-[#006F66]',
+  pending: 'bg-[#FFDDB0] text-[#943700]',
+  processing: 'bg-[#D6E4FF] text-[#004AC6]',
+  cancelled: 'bg-[#FFDAD6] text-[#BA1A1A]',
+};
+
 export default function HostTransactionDetailPage({ transactionId }: { transactionId: string }) {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -98,11 +106,14 @@ export default function HostTransactionDetailPage({ transactionId }: { transacti
                     <span className="text-[#191B23]">{detail.bookingCode}</span>
                   </nav>
                   <div className="mt-2 flex flex-wrap items-center gap-4">
-                    <h1 className="text-[32px] font-bold leading-[38px]">Chi tiết giao dịch {detail.bookingCode}</h1>
-                    <span className="rounded-full bg-[#86F2E4] px-4 py-1 text-xs font-bold leading-3 tracking-[0.6px] text-[#006F66]">
+                    <h1 className="text-[32px] font-bold leading-[38px]">Chi tiết giao dịch</h1>
+                    <span className={`rounded-full px-4 py-1 text-xs font-bold leading-3 tracking-[0.6px] ${STATUS_BADGE[detail.status] || STATUS_BADGE.processing}`}>
                       {detail.statusLabel}
                     </span>
                   </div>
+                  <p className="mt-1 text-base leading-6 text-[#434655]">
+                    Mã giao dịch: <span className="font-semibold text-[#191B23]">{detail.bookingCode}</span>
+                  </p>
                 </div>
                 <button type="button" className="flex h-14 w-fit items-center gap-2 rounded-xl bg-[#004AC6] px-6 text-base text-white shadow-sm hover:bg-[#003f9e]">
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -114,13 +125,13 @@ export default function HostTransactionDetailPage({ transactionId }: { transacti
 
               <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
                 <div className="flex flex-col gap-6">
-                  <section className="grid gap-6 rounded-xl border border-[#E2E8F0] bg-white/70 p-6 shadow-sm backdrop-blur-md sm:grid-cols-3">
+                  <section className="grid gap-6 rounded-xl border border-[#E2E8F0] bg-white/70 p-6 shadow-sm backdrop-blur-md sm:grid-cols-2">
                     <div>
-                      <p className="text-base uppercase leading-6 text-[#434655]">Tổng thanh toán</p>
+                      <p className="text-base uppercase leading-6 text-[#434655]">Số tiền cọc / thanh toán</p>
                       <p className="mt-1 text-2xl font-semibold leading-[31px] text-[#004AC6]">{formatTransactionVND(detail.totalPayment)}</p>
                     </div>
                     <div>
-                      <p className="text-base uppercase leading-6 text-[#434655]">Phương thức</p>
+                      <p className="text-base uppercase leading-6 text-[#434655]">Phương thức thanh toán</p>
                       <p className="mt-1 flex items-center gap-1 text-base font-semibold leading-6">
                         <svg className="h-5 w-5 text-[#006A61]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                           <rect x="4" y="5" width="16" height="14" rx="2" /><path d="M8 10h8M8 14h4" />
@@ -129,8 +140,16 @@ export default function HostTransactionDetailPage({ transactionId }: { transacti
                       </p>
                     </div>
                     <div>
-                      <p className="text-base uppercase leading-6 text-[#434655]">Thời gian hoàn tất</p>
+                      <p className="text-base uppercase leading-6 text-[#434655]">Thời gian thực hiện giao dịch</p>
                       <p className="mt-1 text-base leading-6">{detail.completedAt}</p>
+                    </div>
+                    <div>
+                      <p className="text-base uppercase leading-6 text-[#434655]">Trạng thái hiện tại</p>
+                      <p className="mt-1">
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold leading-3 tracking-[0.6px] ${STATUS_BADGE[detail.status] || STATUS_BADGE.processing}`}>
+                          {detail.statusLabel}
+                        </span>
+                      </p>
                     </div>
                   </section>
 
@@ -165,32 +184,17 @@ export default function HostTransactionDetailPage({ transactionId }: { transacti
                         <p><span className="text-[#434655]">Phí hoa hồng hệ thống (10%):</span> <span className="ml-6 text-[#BA1A1A]">({formatTransactionVND(Math.abs(detail.commission))})</span></p>
                         <div className="border-t-2 border-[#004AC6] pt-5">
                           <p className="text-2xl font-bold leading-8 text-[#004AC6]">
-                            Thực nhận (Net Payout): <span className="ml-6">{formatTransactionVND(detail.netPayout)}</span>
+                            Thực nhận: <span className="ml-6">{formatTransactionVND(detail.netPayout)}</span>
                           </p>
                         </div>
                       </div>
                     </div>
                   </section>
-
-                  <div className="flex flex-col justify-end gap-4 sm:flex-row">
-                    <button type="button" className="flex h-[58px] items-center justify-center gap-2 rounded-xl border border-[#737686] px-6 text-base hover:bg-white">
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10 3h4l8 8v4l-8 8h-4l-8-8v-4l8-8z" />
-                      </svg>
-                      Khiếu nại giao dịch
-                    </button>
-                    <button type="button" className="flex h-[58px] items-center justify-center gap-2 rounded-xl bg-[#006A61] px-6 text-base text-white hover:bg-[#00564f]">
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a8 8 0 0 1-8 8H7l-4 3v-6.5A8 8 0 1 1 21 12z" />
-                      </svg>
-                      Liên hệ khách hàng
-                    </button>
-                  </div>
                 </div>
 
                 <aside className="flex flex-col gap-6">
                   <section className="rounded-xl border border-[#E2E8F0] bg-white/70 p-6 shadow-sm">
-                    <h2 className="text-xl font-semibold leading-7">Khách hàng</h2>
+                    <h2 className="text-xl font-semibold leading-7">Khách đang giao dịch</h2>
                     <div className="mt-6 flex items-center gap-4">
                       <img src={detail.customer.avatarSrc} alt={detail.customer.name} className="h-16 w-16 rounded-full border-4 border-[#006A61] object-cover" />
                       <div>
@@ -198,29 +202,44 @@ export default function HostTransactionDetailPage({ transactionId }: { transacti
                         <p className="text-xs font-bold uppercase tracking-[0.6px] text-[#006A61]">Đã xác thực</p>
                       </div>
                     </div>
-                    <div className="mt-6 space-y-5 border-t border-[#C3C6D7] pt-6 text-base leading-6 text-[#434655]">
-                      <p>{detail.customer.phone}</p>
-                      <p>{detail.customer.email}</p>
-                      <p>{detail.customer.completedBookings} lần đặt phòng thành công</p>
+                    <div className="mt-6 space-y-3 border-t border-[#C3C6D7] pt-6 text-base leading-6 text-[#434655]">
+                      <p>
+                        <span className="font-semibold text-[#191B23]">SĐT:</span> {detail.customer.phone}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-[#191B23]">Email:</span> {detail.customer.email}
+                      </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/host/messages?peer=${detail.customer.userId}`)}
+                      className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#006A61] px-6 text-base font-semibold text-white transition hover:bg-[#00564f]"
+                    >
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a8 8 0 0 1-8 8H7l-4 3v-6.5A8 8 0 1 1 21 12z" />
+                      </svg>
+                      Chat với {detail.customer.name}
+                    </button>
                   </section>
 
-                  <section className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white/70 shadow-sm">
+                  <Link
+                    href={`/host/listings/${detail.room.id}`}
+                    aria-label={`Xem phòng ${detail.room.title}`}
+                    className="group block overflow-hidden rounded-xl border border-[#E2E8F0] bg-white/70 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1.5 hover:shadow-[0_12px_28px_rgba(0,0,0,0.12)]"
+                  >
                     <div className="relative h-32">
-                      <img src={detail.room.imageSrc} alt={detail.room.title} className="h-full w-full object-cover" />
+                      <img src={detail.room.imageSrc} alt={detail.room.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                      <span className="absolute left-4 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-bold leading-3 tracking-[0.6px] text-[#004AC6]">
+                        {detail.room.code}
+                      </span>
                       <h3 className="absolute bottom-4 left-4 right-4 text-xl font-bold leading-7 text-white">{detail.room.title}</h3>
                     </div>
                     <div className="p-4">
-                      <p className="text-base leading-6 text-[#434655]">{detail.room.address}</p>
-                      <Link href={`/host/listings/${detail.room.id}`} className="mt-3 inline-flex items-center gap-1 text-sm text-[#004AC6] hover:underline">
-                        Xem chi tiết tin đăng
-                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7M9 7h8v8" />
-                        </svg>
-                      </Link>
+                      <p className="text-xs font-bold uppercase tracking-[0.6px] text-[#737686]">Phòng phát sinh giao dịch</p>
+                      <p className="mt-1 text-base leading-6 text-[#434655]">{detail.room.address}</p>
                     </div>
-                  </section>
+                  </Link>
 
                   <section className="rounded-xl border border-[#E2E8F0] bg-white/70 p-6 shadow-sm">
                     <h2 className="text-xl font-semibold leading-7">Tiến độ giao dịch</h2>

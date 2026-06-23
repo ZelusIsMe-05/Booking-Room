@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import HostSidebar from '@/components/host/HostSidebar';
 import GoogleAddressInput, { type SelectedPlace } from '@/components/host/GoogleAddressInput';
@@ -91,6 +91,10 @@ const statusMeta: Record<string, { label: string; dot: string; text: string; bg:
 export default function HostEditRoomPage({ listingId }: { listingId: string }) {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Mỗi lần mở trang chỉnh sửa, link truyền ?r=<timestamp> khác nhau ⇒ buộc
+  // tải lại dữ liệu mới nhất (kể cả khi component được tái dùng từ Router Cache).
+  const refreshKey = searchParams.get('r');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [room, setRoom] = useState<HostRoom | null>(null);
@@ -161,7 +165,7 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [listingId]);
+  }, [listingId, refreshKey]);
 
   useEffect(() => {
     return () => {
@@ -255,7 +259,10 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
     setSubmitting(true);
     try {
       await hostRoomService.updateRoom(room.room_id, formData);
-      router.push('/host/listings');
+      // Về trang chi tiết để chủ phòng thấy ngay nội dung vừa cập nhật
+      // (trang danh sách không hiển thị mô tả/chi phí/địa chỉ đầy đủ).
+      router.push(`/host/listings/${room.room_id}`);
+      router.refresh();
     } catch (err: any) {
       setError(err?.message || 'Cập nhật thất bại. Vui lòng thử lại.');
       setSubmitting(false);
@@ -399,19 +406,19 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
                     <input id="edit-deposit" type="text" inputMode="numeric" placeholder="6.500.000" value={depositAmount} onChange={(event) => setDepositAmount(formatMoneyInput(event.target.value))} className={inputClass} />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-electricity">Phí điện (đ)</Label>
+                    <Label htmlFor="edit-electricity">Phí điện (đ/kWh)</Label>
                     <input id="edit-electricity" type="text" inputMode="numeric" placeholder="0" value={electricityCost} onChange={(event) => setElectricityCost(formatMoneyInput(event.target.value))} className={inputClass} />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-water">Phí nước (đ)</Label>
+                    <Label htmlFor="edit-water">Phí nước (đ/khối)</Label>
                     <input id="edit-water" type="text" inputMode="numeric" placeholder="0" value={waterCost} onChange={(event) => setWaterCost(formatMoneyInput(event.target.value))} className={inputClass} />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-internet">Phí internet (đ)</Label>
+                    <Label htmlFor="edit-internet">Phí internet (đ/tháng)</Label>
                     <input id="edit-internet" type="text" inputMode="numeric" placeholder="0" value={internetCost} onChange={(event) => setInternetCost(formatMoneyInput(event.target.value))} className={inputClass} />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-service">Phí dịch vụ (đ)</Label>
+                    <Label htmlFor="edit-service">Phí dịch vụ (đ/tháng)</Label>
                     <input id="edit-service" type="text" inputMode="numeric" placeholder="0" value={serviceFee} onChange={(event) => setServiceFee(formatMoneyInput(event.target.value))} className={inputClass} />
                   </div>
                 </div>

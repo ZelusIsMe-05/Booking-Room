@@ -34,6 +34,10 @@ function bookingCode(depositId) {
   return `#BK-${String(depositId).replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 }
 
+function roomCode(roomId) {
+  return `#P-${String(roomId).replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+}
+
 function initial(name) {
   return (name || '?').trim().charAt(0).toUpperCase();
 }
@@ -181,6 +185,7 @@ async function getTransactionDetail(landlordId, depositId) {
     commission: -commission,
     netPayout,
     customer: {
+      userId: row.tenant_id,
       name: row.tenant_name,
       avatarSrc: row.tenant_avatar || '/images/booking/host/host-avatar.jpg',
       phone: row.tenant_phone || 'Chưa cập nhật',
@@ -189,6 +194,7 @@ async function getTransactionDetail(landlordId, depositId) {
     },
     room: {
       id: row.room_id,
+      code: roomCode(row.room_id),
       title: row.room_title,
       address: row.room_address,
       imageSrc: row.room_cover_image_url || '/images/booking/host/studio-apartment.png',
