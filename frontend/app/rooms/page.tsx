@@ -162,13 +162,16 @@ function RoomsPageContent() {
         // Map UI budget string to minPrice / maxPrice numbers
         let minPrice: number | undefined;
         let maxPrice: number | undefined;
-        if (budget === 'Dưới 1 triệu') {
-          maxPrice = 1000000;
-        } else if (budget === '1 - 3 triệu') {
-          minPrice = 1000000;
+        if (budget === 'Dưới 3 triệu') {
           maxPrice = 3000000;
-        } else if (budget === 'Trên 3 triệu') {
+        } else if (budget === '3 - 5 triệu') {
           minPrice = 3000000;
+          maxPrice = 5000000;
+        } else if (budget === '5 - 10 triệu') {
+          minPrice = 5000000;
+          maxPrice = 10000000;
+        } else if (budget === 'Trên 10 triệu') {
+          minPrice = 10000000;
         }
 
         // Fetch from backend API
