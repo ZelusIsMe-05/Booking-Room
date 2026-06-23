@@ -37,19 +37,7 @@ export default function BookingCheckoutSection({
   const { openChatWith } = useTenantChat();
   const toastShownRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (roomStatus === 'RENTED') {
-      const isRenter = user && user.userId === rentedBy;
-      if (!isRenter && toastShownRef.current !== roomId) {
-        toastShownRef.current = roomId;
-        window.dispatchEvent(new CustomEvent('show-toast', {
-          detail: { message: 'Phòng này đã được thuê.', type: 'error' }
-        }));
-      }
-    } else {
-      toastShownRef.current = null;
-    }
-  }, [roomStatus, rentedBy, user, roomId]);
+
 
   // Booking status and states
   const [loading, setLoading] = useState(false);
@@ -573,9 +561,9 @@ export default function BookingCheckoutSection({
         {/* CTA Buttons */}
         <div className="flex flex-col gap-2.5">
           <button
-            disabled={loading || timerActive || roomStatus === 'RENTED'}
+            disabled={loading || timerActive || roomStatus === 'RENTED' || roomStatus === 'HIDDEN'}
             onClick={startBookingFlow}
-            className={`w-full rounded-xl text-white font-bold py-3.5 px-5 flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-md ${timerActive || roomStatus === 'RENTED'
+            className={`w-full rounded-xl text-white font-bold py-3.5 px-5 flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-md ${timerActive || roomStatus === 'RENTED' || roomStatus === 'HIDDEN'
               ? 'bg-slate-400 cursor-not-allowed shadow-none'
               : 'bg-[#004ac6] hover:bg-[#003f9e] shadow-booking-primary/10'
               }`}
@@ -588,6 +576,8 @@ export default function BookingCheckoutSection({
                 </svg>
                 Đang xử lý...
               </span>
+            ) : roomStatus === 'HIDDEN' ? (
+              <>Phòng không khả dụng</>
             ) : roomStatus === 'RENTED' ? (
               user && user.userId === rentedBy ? (
                 <>Bạn đang thuê phòng này</>
