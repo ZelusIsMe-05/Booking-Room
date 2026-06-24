@@ -62,6 +62,10 @@ export default function ComplaintsPage() {
     fetchReports();
   }, [filterStatus, page, limit, debouncedSearch]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page]);
+
   const handleUpdateStatus = async (reportId: string, status: string) => {
     try {
       setActionLoading(reportId);

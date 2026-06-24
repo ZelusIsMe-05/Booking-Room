@@ -15,7 +15,7 @@ function notFoundHandler(req, res) {
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, req, res, next) {
   if (err instanceof AppError) {
-    return sendError(res, { status: err.status, message: err.message, data: err.data });
+    return sendError(res, { status: err.status, message: err.message, code: err.code, data: err.data });
   }
 
   // Unexpected error: log server-side, return a generic message to the client.

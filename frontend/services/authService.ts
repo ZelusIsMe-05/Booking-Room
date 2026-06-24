@@ -43,11 +43,13 @@ export const authService = {
   loginWithOAuth: async (
     provider: string,
     code: string,
-    redirectUri: string
+    redirectUri: string,
+    role?: 'TENANT' | 'LANDLORD'
   ): Promise<ApiResponse<LoginResponseData & { isNewUser: boolean }>> => {
     return apiClient.post<ApiResponse<LoginResponseData & { isNewUser: boolean }>>(`/auth/oauth/${provider}`, {
       code,
       redirectUri,
+      role,
     });
   },
 

@@ -1,21 +1,3 @@
-export const pendingApprovalSteps = [
-  {
-    id: 'registered',
-    label: 'Đăng ký thành công',
-    state: 'complete',
-  },
-  {
-    id: 'reviewing',
-    label: 'Đang chờ cung cấp CCCD',
-    state: 'current',
-  },
-  {
-    id: 'verified',
-    label: 'Hoàn tất xác thực',
-    state: 'locked',
-  },
-] as const;
-
 export const pendingApprovalNotes = [
   {
     id: 'notice',

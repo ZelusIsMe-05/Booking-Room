@@ -25,6 +25,15 @@ module.exports = {
       fontFamily: {
         sans: ['var(--font-booking)', 'Be Vietnam Pro', 'Inter', 'sans-serif'],
       },
+      keyframes: {
+        marquee: {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
+      },
+      animation: {
+        marquee: 'marquee 12s linear infinite',
+      },
     },
   },
   plugins: [],

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import HostSidebar from '@/components/host/HostSidebar';
 import GoogleAddressInput, { type SelectedPlace } from '@/components/host/GoogleAddressInput';
@@ -19,13 +19,15 @@ function EditSection({
   title,
   icon,
   children,
+  className = '',
 }: {
   title: string;
   icon: React.ReactNode;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <section className="rounded-xl border border-[rgba(226,232,240,0.5)] bg-white/80 p-6 shadow-sm backdrop-blur-md">
+    <section className={`rounded-xl border border-[rgba(226,232,240,0.5)] bg-white/80 p-6 shadow-sm backdrop-blur-md ${className}`}>
       <div className="flex items-center gap-2 border-b border-[#C3C6D7] pb-4">
         <span className="text-[#004AC6]">{icon}</span>
         <h2 className="text-2xl font-semibold leading-[31px] text-[#191B23]">{title}</h2>
@@ -68,6 +70,18 @@ function TopIcons() {
 const inputClass =
   'h-[58px] rounded-lg border border-[#C3C6D7] bg-white px-4 text-base outline-none focus:ring-2 focus:ring-[#004AC6]/20';
 
+/** Format a numeric string with Vietnamese thousand separators, e.g. "6500000" → "6.500.000". */
+function formatMoneyInput(value: string | number): string {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  if (!digits) return '';
+  return Number(digits).toLocaleString('vi-VN');
+}
+
+/** Strip separators back to a plain digit string, e.g. "6.500.000" → "6500000". */
+function parseMoneyInput(value: string): string {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
 const statusMeta: Record<string, { label: string; dot: string; text: string; bg: string }> = {
   AVAILABLE: { label: 'Đang hoạt động', dot: '#006A61', text: '#006A61', bg: 'rgba(0,106,97,0.1)' },
   RENTED: { label: 'Đã cho thuê', dot: '#434655', text: '#434655', bg: 'rgba(67,70,85,0.1)' },
@@ -77,6 +91,10 @@ const statusMeta: Record<string, { label: string; dot: string; text: string; bg:
 export default function HostEditRoomPage({ listingId }: { listingId: string }) {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Mỗi lần mở trang chỉnh sửa, link truyền ?r=<timestamp> khác nhau ⇒ buộc
+  // tải lại dữ liệu mới nhất (kể cả khi component được tái dùng từ Router Cache).
+  const refreshKey = searchParams.get('r');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [room, setRoom] = useState<HostRoom | null>(null);
@@ -131,12 +149,12 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
         setLatitude(found.latitude == null ? '' : String(found.latitude));
         setLongitude(found.longitude == null ? '' : String(found.longitude));
         setDescription(found.room_description || '');
-        setMonthlyRent(String(found.monthly_rent ?? ''));
-        setDepositAmount(String(found.deposit_amount ?? ''));
-        setElectricityCost(String(found.electricity_cost ?? ''));
-        setWaterCost(String(found.water_cost ?? ''));
-        setInternetCost(String(found.internet_cost ?? ''));
-        setServiceFee(String(found.service_fee ?? ''));
+        setMonthlyRent(formatMoneyInput(found.monthly_rent ?? ''));
+        setDepositAmount(formatMoneyInput(found.deposit_amount ?? ''));
+        setElectricityCost(formatMoneyInput(found.electricity_cost ?? ''));
+        setWaterCost(formatMoneyInput(found.water_cost ?? ''));
+        setInternetCost(formatMoneyInput(found.internet_cost ?? ''));
+        setServiceFee(formatMoneyInput(found.service_fee ?? ''));
       } catch (err: any) {
         if (!cancelled) setLoadError(err?.message || 'Không tải được thông tin phòng.');
       } finally {
@@ -147,7 +165,7 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [listingId]);
+  }, [listingId, refreshKey]);
 
   useEffect(() => {
     return () => {
@@ -208,10 +226,13 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
     if (!room) return;
     setError(null);
 
+    const rentValue = parseMoneyInput(monthlyRent);
+    const depositValue = parseMoneyInput(depositAmount);
+
     if (!title.trim()) return setError('Vui lòng nhập tên phòng.');
     if (!address.trim()) return setError('Vui lòng nhập địa chỉ.');
-    if (!monthlyRent || Number(monthlyRent) <= 0) return setError('Giá thuê hàng tháng phải lớn hơn 0.');
-    if (depositAmount === '' || Number(depositAmount) < 0) return setError('Tiền đặt cọc không hợp lệ.');
+    if (!rentValue || Number(rentValue) <= 0) return setError('Giá thuê hàng tháng phải lớn hơn 0.');
+    if (depositValue === '' || Number(depositValue) < 0) return setError('Tiền đặt cọc không hợp lệ.');
     if (!capacity || Number(capacity) <= 0) return setError('Sức chứa phải lớn hơn 0.');
 
     const formData = new FormData();
@@ -226,19 +247,22 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
     if (latitude.trim()) formData.append('latitude', latitude.trim());
     if (longitude.trim()) formData.append('longitude', longitude.trim());
     formData.append('max_capacity', String(capacity));
-    formData.append('monthly_rent', String(monthlyRent));
-    formData.append('deposit_amount', String(depositAmount));
-    formData.append('electricity_cost', String(electricityCost || 0));
-    formData.append('water_cost', String(waterCost || 0));
-    formData.append('internet_cost', String(internetCost || 0));
-    formData.append('service_fee', String(serviceFee || 0));
+    formData.append('monthly_rent', rentValue);
+    formData.append('deposit_amount', depositValue);
+    formData.append('electricity_cost', parseMoneyInput(electricityCost) || '0');
+    formData.append('water_cost', parseMoneyInput(waterCost) || '0');
+    formData.append('internet_cost', parseMoneyInput(internetCost) || '0');
+    formData.append('service_fee', parseMoneyInput(serviceFee) || '0');
     formData.append('room_description', description.trim());
     newImages.forEach((img) => formData.append('images', img.file));
 
     setSubmitting(true);
     try {
       await hostRoomService.updateRoom(room.room_id, formData);
-      router.push('/host/listings');
+      // Về trang chi tiết để chủ phòng thấy ngay nội dung vừa cập nhật
+      // (trang danh sách không hiển thị mô tả/chi phí/địa chỉ đầy đủ).
+      router.push(`/host/listings/${room.room_id}`);
+      router.refresh();
     } catch (err: any) {
       setError(err?.message || 'Cập nhật thất bại. Vui lòng thử lại.');
       setSubmitting(false);
@@ -247,9 +271,9 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#FAF8FF] text-[#191B23]">
+      <main className="min-h-screen bg-slate-50 font-sans text-slate-900">
         <HostSidebar user={user} onLogout={handleLogout} activePage="listings" />
-        <section className="flex min-h-screen items-center justify-center lg:ml-[272px]">
+        <section className="flex min-h-screen items-center justify-center lg:ml-64">
           <p className="text-base font-semibold text-[#434655]">Đang tải thông tin phòng...</p>
         </section>
       </main>
@@ -258,9 +282,9 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
 
   if (loadError || !room) {
     return (
-      <main className="min-h-screen bg-[#FAF8FF] text-[#191B23]">
+      <main className="min-h-screen bg-slate-50 font-sans text-slate-900">
         <HostSidebar user={user} onLogout={handleLogout} activePage="listings" />
-        <section className="flex min-h-screen flex-col items-center justify-center gap-4 lg:ml-[272px]">
+        <section className="flex min-h-screen flex-col items-center justify-center gap-4 lg:ml-64">
           <p className="text-base font-semibold text-[#BA1A1A]">{loadError || 'Không tìm thấy phòng.'}</p>
           <Link href="/host/listings" className="rounded-lg bg-[#004AC6] px-6 py-3 text-base text-white hover:bg-[#003f9e]">
             Quay lại danh sách
@@ -274,9 +298,9 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
   const existingImages = room.images || [];
 
   return (
-    <main className="min-h-screen bg-[#FAF8FF] text-[#191B23]">
+    <main className="min-h-screen bg-slate-50 font-sans text-slate-900">
       <HostSidebar user={user} onLogout={handleLogout} activePage="listings" />
-      <section className="flex min-h-screen flex-col lg:ml-[272px]">
+      <section className="flex min-h-screen flex-col lg:ml-64">
         <TopIcons />
 
         <form onSubmit={handleSubmit} className="mx-auto flex w-full max-w-[1024px] flex-col gap-4 p-4 sm:p-6">
@@ -320,7 +344,7 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
           )}
 
           <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-            <div className="flex flex-col gap-6">
+            <div className="relative z-20 flex flex-col gap-6">
               <EditSection
                 title="Thông tin cơ bản"
                 icon={
@@ -365,7 +389,44 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
               </EditSection>
 
               <EditSection
+                title="Giá & Chi phí"
+                icon={
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                }
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="edit-rent">Giá thuê hàng tháng (đ)</Label>
+                    <input id="edit-rent" type="text" inputMode="numeric" placeholder="6.500.000" value={monthlyRent} onChange={(event) => setMonthlyRent(formatMoneyInput(event.target.value))} className={inputClass} />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="edit-deposit">Tiền đặt cọc (đ)</Label>
+                    <input id="edit-deposit" type="text" inputMode="numeric" placeholder="6.500.000" value={depositAmount} onChange={(event) => setDepositAmount(formatMoneyInput(event.target.value))} className={inputClass} />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="edit-electricity">Phí điện (đ/kWh)</Label>
+                    <input id="edit-electricity" type="text" inputMode="numeric" placeholder="0" value={electricityCost} onChange={(event) => setElectricityCost(formatMoneyInput(event.target.value))} className={inputClass} />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="edit-water">Phí nước (đ/khối)</Label>
+                    <input id="edit-water" type="text" inputMode="numeric" placeholder="0" value={waterCost} onChange={(event) => setWaterCost(formatMoneyInput(event.target.value))} className={inputClass} />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="edit-internet">Phí internet (đ/tháng)</Label>
+                    <input id="edit-internet" type="text" inputMode="numeric" placeholder="0" value={internetCost} onChange={(event) => setInternetCost(formatMoneyInput(event.target.value))} className={inputClass} />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="edit-service">Phí dịch vụ (đ/tháng)</Label>
+                    <input id="edit-service" type="text" inputMode="numeric" placeholder="0" value={serviceFee} onChange={(event) => setServiceFee(formatMoneyInput(event.target.value))} className={inputClass} />
+                  </div>
+                </div>
+              </EditSection>
+
+              <EditSection
                 title="Vị trí"
+                className="relative z-30"
                 icon={
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s7-4.6 7-11a7 7 0 1 0-14 0c0 6.4 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" />
@@ -397,42 +458,6 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="edit-longitude">Kinh độ</Label>
                     <input id="edit-longitude" type="number" step="any" value={longitude} onChange={(event) => setLongitude(event.target.value)} className={inputClass} />
-                  </div>
-                </div>
-              </EditSection>
-
-              <EditSection
-                title="Giá & Chi phí"
-                icon={
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                  </svg>
-                }
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-rent">Giá thuê hàng tháng (đ)</Label>
-                    <input id="edit-rent" type="number" min="0" value={monthlyRent} onChange={(event) => setMonthlyRent(event.target.value)} className={inputClass} />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-deposit">Tiền đặt cọc (đ)</Label>
-                    <input id="edit-deposit" type="number" min="0" value={depositAmount} onChange={(event) => setDepositAmount(event.target.value)} className={inputClass} />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-electricity">Phí điện (đ)</Label>
-                    <input id="edit-electricity" type="number" min="0" value={electricityCost} onChange={(event) => setElectricityCost(event.target.value)} className={inputClass} />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-water">Phí nước (đ)</Label>
-                    <input id="edit-water" type="number" min="0" value={waterCost} onChange={(event) => setWaterCost(event.target.value)} className={inputClass} />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-internet">Phí internet (đ)</Label>
-                    <input id="edit-internet" type="number" min="0" value={internetCost} onChange={(event) => setInternetCost(event.target.value)} className={inputClass} />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-service">Phí dịch vụ (đ)</Label>
-                    <input id="edit-service" type="number" min="0" value={serviceFee} onChange={(event) => setServiceFee(event.target.value)} className={inputClass} />
                   </div>
                 </div>
               </EditSection>

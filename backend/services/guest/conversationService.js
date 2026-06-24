@@ -107,8 +107,8 @@ async function verifyParticipant(conversationId, userId) {
 /**
  * Retrieve messages for a conversation.
  */
-async function getMessages(conversationId, userId, { page = 1, limit = 20 }) {
-  await verifyParticipant(conversationId, userId);
+async function getMessages(conversationId, userId, role, { page = 1, limit = 20 }) {
+  const conversation = await verifyParticipant(conversationId, userId);
 
   // Tự động chuyển các tin nhắn 'SENT' thành 'DELIVERED' khi tải chi tiết
   await conversationRepository.markDeliveredForConversations([conversationId], userId);
@@ -116,7 +116,14 @@ async function getMessages(conversationId, userId, { page = 1, limit = 20 }) {
   const p = Math.max(1, parseInt(page, 10) || 1);
   const l = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
 
-  const { items, total } = await conversationRepository.findMessages(conversationId, { page: p, limit: l });
+  let clearedAt = null;
+  if (role === 'TENANT') {
+    clearedAt = conversation.tenant_cleared_at;
+  } else if (role === 'LANDLORD') {
+    clearedAt = conversation.landlord_cleared_at;
+  }
+
+  const { items, total } = await conversationRepository.findMessages(conversationId, { page: p, limit: l, clearedAt });
   return { items, total, page: p, limit: l };
 }
 
@@ -163,10 +170,25 @@ async function markAsRead(conversationId, userId) {
   await conversationRepository.markMessagesAsRead(conversationId, userId);
 }
 
+/**
+ * Soft clear/delete a conversation for the caller.
+ */
+async function clearConversation(conversationId, userId, role) {
+  if (role !== 'TENANT' && role !== 'LANDLORD') {
+    throw new AppError('BAD_REQUEST', 'Role không hợp lệ.', 400);
+  }
+  
+  // Verify participant permissions (throws if not authorized)
+  await verifyParticipant(conversationId, userId);
+  
+  await conversationRepository.clearConversation(conversationId, role, new Date());
+}
+
 module.exports = {
   getOrCreateConversation,
   listConversations,
   getMessages,
   sendMessage,
-  markAsRead
+  markAsRead,
+  clearConversation
 };

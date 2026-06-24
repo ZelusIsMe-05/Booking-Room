@@ -6,12 +6,17 @@ import { bookingService } from '@/services/bookingService';
 import { apiClient } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
 import { useTenantChat } from '@/context/TenantChatContext';
+import ConfirmModal from '../common/ConfirmModal';
+
+const verifiedTxns = new Set<string>();
 
 interface BookingCheckoutSectionProps {
   roomId: string;
   price: number;
   deposit: number;
   roomTitle: string;
+  roomStatus?: string;
+  rentedBy?: string | null;
   host?: {
     userId: string | null;
     fullName: string;
@@ -24,10 +29,16 @@ export default function BookingCheckoutSection({
   price,
   deposit,
   roomTitle,
+  roomStatus,
+  rentedBy,
   host,
 }: BookingCheckoutSectionProps) {
   const { user } = useAuth();
   const { openChatWith } = useTenantChat();
+  const toastShownRef = useRef<string | null>(null);
+
+
+
   // Booking status and states
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -43,6 +54,7 @@ export default function BookingCheckoutSection({
   const [countdown, setCountdown] = useState(900); // 15 mins in seconds
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [timerActive, setTimerActive] = useState(false);
+  const [isConfirmCancelOpen, setIsConfirmCancelOpen] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -146,6 +158,9 @@ export default function BookingCheckoutSection({
     const vnpTxnRef = params.get('vnp_TxnRef');
 
     if (vnpResponseCode && vnpTxnRef) {
+      if (verifiedTxns.has(vnpTxnRef)) return;
+      verifiedTxns.add(vnpTxnRef);
+
       async function verifyVnpayCallback() {
         setLoading(true);
         try {
@@ -215,10 +230,9 @@ export default function BookingCheckoutSection({
 
   const startBookingFlow = async () => {
     if (!user) {
-      window.dispatchEvent(new CustomEvent('show-toast', {
-        detail: { message: 'Vui lòng đăng nhập bằng tài khoản Người thuê để đặt cọc.', type: 'warning' }
+      window.dispatchEvent(new CustomEvent('show-login-prompt', {
+        detail: { redirectUrl: window.location.href }
       }));
-      window.location.href = `/auth/login?redirect=/rooms/${roomId}`;
       return;
     }
     if (user.role !== 'TENANT') {
@@ -288,12 +302,12 @@ export default function BookingCheckoutSection({
       setPaymentUrl(payUrl);
       setCountdown(900); // 15 mins
       setTimerActive(true);
+      setIsModalOpen(true);
 
       // Save to sessionStorage for persistence on reload
       sessionStorage.setItem(`active_deposit_${roomId}`, newDepositId);
       sessionStorage.setItem(`active_deposit_url_${roomId}`, payUrl);
       sessionStorage.setItem(`active_deposit_expire_${roomId}`, String(Date.now() + 900 * 1000));
-
       // Open the modal instead of redirecting immediately
       setIsModalOpen(true);
     } catch (err: any) {
@@ -561,9 +575,9 @@ export default function BookingCheckoutSection({
             </div>
           ) : (
             <button
-              disabled={loading || timerActive}
+              disabled={loading || timerActive || roomStatus === 'RENTED' || roomStatus === 'HIDDEN'}
               onClick={startBookingFlow}
-              className={`w-full rounded-xl text-white font-bold py-3.5 px-5 flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-md ${timerActive
+              className={`w-full rounded-xl text-white font-bold py-3.5 px-5 flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-md ${timerActive || roomStatus === 'RENTED' || roomStatus === 'HIDDEN'
                 ? 'bg-slate-400 cursor-not-allowed shadow-none'
                 : 'bg-[#004ac6] hover:bg-[#003f9e] shadow-booking-primary/10'
                 }`}
@@ -576,6 +590,14 @@ export default function BookingCheckoutSection({
                   </svg>
                   Đang xử lý...
                 </span>
+              ) : roomStatus === 'HIDDEN' ? (
+                <>Phòng không khả dụng</>
+              ) : roomStatus === 'RENTED' ? (
+                user && user.userId === rentedBy ? (
+                  <>Bạn đang thuê phòng này</>
+                ) : (
+                  <>Phòng đã được thuê</>
+                )
               ) : (
                 <>
                   <WalletIcon className="h-5 w-5 text-white" />
@@ -589,10 +611,9 @@ export default function BookingCheckoutSection({
             type="button"
             onClick={async () => {
               if (!user) {
-                window.dispatchEvent(new CustomEvent('show-toast', {
-                  detail: { message: 'Vui lòng đăng nhập bằng tài khoản Người thuê để nhắn tin cho chủ nhà.', type: 'warning' }
+                window.dispatchEvent(new CustomEvent('show-login-prompt', {
+                  detail: { redirectUrl: window.location.href }
                 }));
-                window.location.href = `/auth/login?redirect=/rooms/${roomId}`;
                 return;
               }
               if (user.role !== 'TENANT') {
@@ -650,20 +671,39 @@ export default function BookingCheckoutSection({
                 Thời gian thanh toán còn lại: {formatTime(countdown)}
               </div>
 
-              {/* Price Details Box */}
-              <div className="w-full p-4 rounded-2xl bg-[#faf8ff] border border-slate-100 flex flex-col gap-3 text-left">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-[11px] font-bold text-booking-muted uppercase tracking-[0.02em]">Số tiền cọc</p>
-                    <p className="text-xl md:text-2xl font-extrabold text-booking-text mt-0.5 text-booking-primary">
-                      {deposit.toLocaleString('vi-VN')} đ
-                    </p>
+              {/* Detailed Invoice Table */}
+              <div className="w-full border border-slate-200 rounded-2xl overflow-hidden bg-white text-sm">
+                <div className="bg-[#FAF8FF] border-b border-slate-200 px-4 py-3 text-left font-bold text-booking-text flex items-center gap-2">
+                  <span className="text-lg">📋</span> Thông tin chi tiết hóa đơn đặt cọc
+                </div>
+                <div className="divide-y divide-slate-100 text-left">
+                  <div className="flex justify-between items-center px-4 py-3">
+                    <span className="text-booking-muted font-medium">Mã đơn đặt cọc</span>
+                    <span className="font-mono text-xs font-bold text-booking-text bg-slate-100 px-2 py-0.5 rounded">{activeDepositId}</span>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[11px] font-bold text-booking-muted uppercase tracking-[0.02em]">Giá thuê/tháng</p>
-                    <p className="text-sm font-bold text-booking-text mt-0.5">
-                      {price.toLocaleString('vi-VN')} đ
-                    </p>
+                  <div className="flex justify-between items-center px-4 py-3">
+                    <span className="text-booking-muted font-medium">Tên phòng</span>
+                    <span className="font-bold text-booking-text max-w-[200px] text-right truncate" title={roomTitle}>{roomTitle}</span>
+                  </div>
+                  <div className="flex justify-between items-center px-4 py-3">
+                    <span className="text-booking-muted font-medium">Giá thuê phòng</span>
+                    <span className="font-bold text-booking-text">{price.toLocaleString('vi-VN')} đ/tháng</span>
+                  </div>
+                  <div className="flex justify-between items-center px-4 py-3">
+                    <span className="text-booking-muted font-medium font-bold">Số tiền cọc cần trả</span>
+                    <span className="font-extrabold text-[#004ac6] text-base">{deposit.toLocaleString('vi-VN')} đ</span>
+                  </div>
+                  <div className="flex justify-between items-center px-4 py-3">
+                    <span className="text-booking-muted font-medium">Nội dung thanh toán</span>
+                    <span className="font-medium text-booking-text max-w-[220px] text-right text-xs text-[#004ac6]">
+                      Thanh toan dat coc cho phong: {roomTitle}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center px-4 py-3">
+                    <span className="text-booking-muted font-medium">Phương thức thanh toán</span>
+                    <span className="font-bold text-booking-text flex items-center gap-1">
+                      <span className="text-xs">💳</span> VNPAY Sandbox
+                    </span>
                   </div>
                 </div>
 
@@ -680,39 +720,17 @@ export default function BookingCheckoutSection({
                 )}
               </div>
 
-              {/* VNPAY payment details */}
-              <div className="w-full space-y-4">
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-center shadow-inner flex flex-col items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-[#004ac6] text-xl">
-                    💳
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-booking-text">Xác nhận thanh toán qua VNPAY</p>
-                    <p className="text-xs text-booking-muted mt-1 leading-relaxed">
-                      Hệ thống sẽ chuyển hướng bạn đến cổng thanh toán VNPAY Sandbox để tiến hành đặt cọc an toàn.
-                    </p>
-                  </div>
-                  
-                  <button
-                    onClick={() => {
-                      if (paymentUrl) {
-                        window.location.href = paymentUrl;
-                      }
-                    }}
-                    className="mt-2 w-full py-3 bg-[#004ac6] hover:bg-[#003f9e] text-white text-sm font-extrabold rounded-xl shadow-md transition active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <span>💳</span> Thanh toán ngay qua VNPAY
-                  </button>
-                </div>
-              </div>
+              <p className="text-[11px] text-booking-muted leading-relaxed">
+                Vui lòng xác nhận thông tin hóa đơn đặt cọc ở trên. Khi nhấn <strong>Thanh toán ngay</strong>, bạn sẽ được đưa tới Cổng thanh toán VNPAY Sandbox để hoàn tất giao dịch.
+              </p>
             </div>
 
             {/* Modal Footer */}
-            <div className="p-5 border-t border-slate-100 flex bg-slate-50 justify-center">
+            <div className="p-5 border-t border-slate-100 flex bg-slate-50 gap-3">
               <button
                 disabled={loading}
-                onClick={() => handleCancelOrExpire(false)}
-                className="w-full py-3.5 px-5 border border-rose-200 hover:bg-rose-50 text-rose-600 hover:text-rose-700 font-extrabold rounded-xl transition text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => setIsConfirmCancelOpen(true)}
+                className="flex-1 py-3 px-4 border border-rose-200 hover:bg-rose-50 text-rose-600 hover:text-rose-700 font-bold rounded-xl transition text-sm flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <>
@@ -720,16 +738,38 @@ export default function BookingCheckoutSection({
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    Đang hủy giao dịch...
+                    Đang hủy...
                   </>
                 ) : (
                   'Hủy giao dịch'
                 )}
               </button>
+
+              <button
+                onClick={() => {
+                  if (paymentUrl) {
+                    window.location.href = paymentUrl;
+                  }
+                }}
+                disabled={!paymentUrl || loading}
+                className="flex-1 py-3 px-4 bg-[#004ac6] hover:bg-[#003f9e] text-white font-bold rounded-xl transition text-sm flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                💳 Thanh toán ngay
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={isConfirmCancelOpen}
+        onClose={() => setIsConfirmCancelOpen(false)}
+        onConfirm={async () => {
+          setIsConfirmCancelOpen(false);
+          await handleCancelOrExpire(false);
+        }}
+        loading={loading}
+      />
     </>
   );
 }

@@ -15,6 +15,8 @@ export type BookingRoom = {
   amenities: string[];
   description: string;
   images?: string[];
+  status?: string;
+  rentedBy?: string | null;
 };
 
 export const bookingRooms: BookingRoom[] = [];

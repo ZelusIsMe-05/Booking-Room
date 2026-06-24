@@ -20,7 +20,7 @@ function findConfirmedDeposit(depositId, tenantId) {
     .where({ 
       'deposits.deposit_id': depositId, 
       'deposits.tenant_id': tenantId, 
-      'deposits.status': 'CONFIRMED' 
+      'deposits.status': 'ACCEPTED' 
     })
     .select(
       'deposits.*', 
@@ -80,6 +80,7 @@ async function findByRoomId(roomId, { page = 1, limit = 10 }) {
       'reviews.comment',
       'reviews.created_at',
       'reviews.updated_at',
+      'reviews.tenant_id as reviewer_id',
       'users.full_name as reviewer_name',
       'users.avatar_url as reviewer_avatar',
     );
@@ -105,6 +106,26 @@ async function create({ deposit_id, room_id, tenant_id, rating, comment }) {
   return review;
 }
 
+/**
+ * Update an existing review row and return the updated record.
+ *
+ * @param {string} reviewId
+ * @param {object} data
+ * @param {number} data.rating
+ * @param {string|null} data.comment
+ * @returns {Promise<object>}
+ */
+async function update(reviewId, { rating, comment }) {
+  const [review] = await db('reviews')
+    .where({ review_id: reviewId })
+    .update({ 
+      rating, 
+      comment,
+      updated_at: db.fn.now()
+    })
+    .returning('*');
+  return review;
+}
 
 /**
  * Recalculate and persist the average_rating of a room based on all its reviews.
@@ -128,5 +149,6 @@ module.exports = {
   findById,
   findByRoomId,
   create,
+  update,
   recalcAverageRating,
 };

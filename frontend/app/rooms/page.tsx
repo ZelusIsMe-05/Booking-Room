@@ -9,6 +9,7 @@ import BookingHeader from '@/components/booking/BookingHeader';
 import RoomCard from '@/components/booking/RoomCard';
 import SearchBento from '@/components/booking/SearchBento';
 import { roomService, mapBackendRoomToBookingRoom } from '@/services/roomService';
+import { favoriteService } from '@/services/favoriteService';
 import type { BookingRoom } from '@/data/bookingRooms';
 
 // Lazy-load RoomMap để tránh SSR error (Leaflet cần window object)
@@ -68,6 +69,7 @@ function RoomsPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [currentPage, setCurrentPage] = useState(1);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
   const q = searchParams.get('q') || '';
   const budget = searchParams.get('budget') || '';
@@ -83,6 +85,74 @@ function RoomsPageContent() {
 
   const ITEMS_PER_PAGE = 14;
 
+  const fetchFavorites = async () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    if (!token) {
+      setFavoriteIds(new Set());
+      return;
+    }
+
+    try {
+      const res = await favoriteService.listFavorites({ limit: 50 });
+      if (res && res.data) {
+        const items = res.data.items || [];
+        setFavoriteIds(new Set(items.map((r: any) => r.roomId)));
+      }
+    } catch (err) {
+      console.error('Error loading favorites on all listing page:', err);
+    }
+  };
+
+  const handleToggleFavorite = async (roomId: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    if (!token) {
+      window.dispatchEvent(
+        new CustomEvent('show-login-prompt', {
+          detail: { redirectUrl: window.location.href }
+        })
+      );
+      return;
+    }
+
+    try {
+      const res = await favoriteService.toggleFavorite(roomId);
+      if (res && res.data) {
+        const action = res.data.action;
+        if (action === 'ADDED') {
+          setFavoriteIds((prev) => new Set([...prev, roomId]));
+          window.dispatchEvent(
+            new CustomEvent('show-toast', {
+              detail: { message: 'Đã thêm vào phòng yêu thích của bạn.', type: 'success' }
+            })
+          );
+        } else {
+          setFavoriteIds((prev) => {
+            const next = new Set(prev);
+            next.delete(roomId);
+            return next;
+          });
+          window.dispatchEvent(
+            new CustomEvent('show-toast', {
+              detail: { message: 'Đã xóa khỏi phòng yêu thích của bạn.', type: 'error' }
+            })
+          );
+        }
+      }
+    } catch (err: any) {
+      console.error('Error toggling favorite:', err);
+      const msg = err.response?.data?.message || err.message || 'Lỗi xử lý yêu thích';
+      window.dispatchEvent(
+        new CustomEvent('show-toast', {
+          detail: { message: msg, type: 'error' }
+        })
+      );
+    }
+  };
+
+  useEffect(() => {
+    fetchFavorites();
+  }, []);
+
   useEffect(() => {
     async function fetchRooms() {
       setLoading(true);
@@ -92,13 +162,16 @@ function RoomsPageContent() {
         // Map UI budget string to minPrice / maxPrice numbers
         let minPrice: number | undefined;
         let maxPrice: number | undefined;
-        if (budget === 'Dưới 1 triệu') {
-          maxPrice = 1000000;
-        } else if (budget === '1 - 3 triệu') {
-          minPrice = 1000000;
+        if (budget === 'Dưới 3 triệu') {
           maxPrice = 3000000;
-        } else if (budget === 'Trên 3 triệu') {
+        } else if (budget === '3 - 5 triệu') {
           minPrice = 3000000;
+          maxPrice = 5000000;
+        } else if (budget === '5 - 10 triệu') {
+          minPrice = 5000000;
+          maxPrice = 10000000;
+        } else if (budget === 'Trên 10 triệu') {
+          minPrice = 10000000;
         }
 
         // Fetch from backend API
@@ -129,6 +202,10 @@ function RoomsPageContent() {
     
     fetchRooms();
   }, [q, budget, type, nearLatStr, nearLngStr]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentPage]);
 
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
@@ -227,10 +304,14 @@ function RoomsPageContent() {
           <RoomMap rooms={rooms} height={580} searchCenter={searchCenter} />
         ) : (
           <div className="space-y-8">
-            /* ---- Danh sách ---- */
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {paginatedRooms.map((room) => (
-                <RoomCard key={room.id} room={room} />
+                <RoomCard
+                  key={room.id}
+                  room={room}
+                  isFavorited={favoriteIds.has(room.id)}
+                  onToggleFavorite={handleToggleFavorite}
+                />
               ))}
             </div>
 

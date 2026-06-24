@@ -45,23 +45,11 @@ export default function Header() {
 
   return (
     <header className="bg-white border-b border-gray-100 sticky top-0 z-50 px-4 lg:px-12 py-3 flex items-center justify-between gap-4">
-      {/* 1. Logo & Tìm kiếm nhanh */}
+      {/* 1. Logo */}
       <div className="flex items-center gap-6 flex-1 max-w-xl">
         <Link href="/" className="text-[#0052CC] font-bold text-2xl tracking-tight whitespace-nowrap">
           Booking-Room
         </Link>
-        <div className="relative w-full max-w-xs hidden md:block">
-          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </span>
-          <input
-            type="text"
-            placeholder="Tìm kiếm nhanh..."
-            className="w-full pl-9 pr-4 py-1.5 bg-[#F4F5F7] border border-transparent rounded-full text-sm focus:outline-none focus:bg-white focus:border-gray-200 transition-colors"
-          />
-        </div>
       </div>
 
       {/* 2. Menu Navigation & Auth Options */}

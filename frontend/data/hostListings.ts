@@ -1,4 +1,4 @@
-export type HostListingStatus = 'active' | 'rented' | 'pending';
+export type HostListingStatus = 'active' | 'rented' | 'pending' | 'hidden';
 
 export interface HostListing {
   id: string;
@@ -12,6 +12,10 @@ export interface HostListing {
   isVisible: boolean;
   imageSrc: string;
   imageAlt: string;
+  /** Average rating (0–5). Shown on dashboard "featured" cards. */
+  rating?: number;
+  /** Number of tenants who favourited this room. Shown on featured cards. */
+  favoriteCount?: number;
 }
 
 export interface HostListingFilter {

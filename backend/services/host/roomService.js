@@ -166,7 +166,9 @@ function buildPatch(payload, existing) {
     'room_description',
     'longitude',
     'latitude',
-    'status',
+    // NOTE: 'status' is intentionally NOT editable here. Visibility changes go
+    // through setRoomVisibility() so transitions stay validated; lifecycle
+    // statuses (LOCKED/RENTED) are managed by the deposit/payment flow.
   ];
   const numericFields = ['max_capacity', 'monthly_rent', 'deposit_amount', 'electricity_cost', 'water_cost', 'internet_cost', 'service_fee'];
   const patch = {};
@@ -185,6 +187,11 @@ function buildPatch(payload, existing) {
 }
 
 async function updateRoom(landlordId, roomId, payload = {}, files = []) {
+  // NOTE: 'status' is intentionally NOT editable here — visibility is changed
+  // only via setRoomVisibility() so transitions stay validated. Lifecycle
+  // statuses (LOCKED/RENTED) are managed by the deposit/payment flow.
+  const allowed = ['title', 'room_type', 'detailed_address', 'max_capacity', 'monthly_rent', 'deposit_amount', 'electricity_cost', 'water_cost', 'internet_cost', 'service_fee', 'room_description', 'longitude', 'latitude'];
+  const numericFields = ['max_capacity', 'monthly_rent', 'deposit_amount', 'electricity_cost', 'water_cost', 'internet_cost', 'service_fee'];
   const existing = await roomRepository.findById(roomId);
   if (!existing) throw new AppError('NOT_FOUND', 'Room not found', 404);
   if (existing.landlord_id !== landlordId) throw new AppError('FORBIDDEN', 'Not allowed to modify this room', 403);
@@ -209,6 +216,8 @@ async function updateRoom(landlordId, roomId, payload = {}, files = []) {
       break;
     }
   }
+  // Đổi địa chỉ/vị trí cũng phải duyệt lại (locationChanged do buildPatch tính sẵn).
+  if (locationChanged) needApprovalReset = true;
   if (files && files.length) needApprovalReset = true;
 
   return db.transaction(async (trx) => {
@@ -244,6 +253,14 @@ async function updateRoom(landlordId, roomId, payload = {}, files = []) {
     }
 
     if (needApprovalReset) {
+      // room_approvals không lưu snapshot nội dung và rooms chỉ giữ 1 bản ghi
+      // (trạng thái mới nhất), nên giữ nhiều dòng là vô nghĩa:
+      //  - nhiều PENDING ⇒ admin thấy cùng 1 phòng nhiều lần;
+      //  - còn dòng APPROVED cũ ⇒ findPublicById vẫn cho phòng hiển thị công
+      //    khai với nội dung vừa sửa dù CHƯA được duyệt lại.
+      // Xoá sạch approval cũ rồi chèn đúng 1 dòng PENDING ⇒ luôn chỉ có 1 yêu
+      // cầu duyệt (cái mới nhất có hiệu lực) và phòng ẩn khỏi public tới khi duyệt.
+      await trx('room_approvals').where({ room_id: roomId }).del();
       await trx('room_approvals').insert({ room_id: roomId, approval_status: 'PENDING' });
     }
 
@@ -271,6 +288,48 @@ async function listMyRooms(landlordId, query) {
 
   const { items, total } = await roomRepository.findByLandlord(landlordId, { page, limit, sortBy, order, status });
   return { items, pagination: { page, limit, total } };
+}
+
+/**
+ * Toggle a room's public visibility (Hiển thị / Tạm ẩn).
+ *
+ * - visible=false: AVAILABLE -> HIDDEN (chỉ cho phép khi đang AVAILABLE)
+ * - visible=true:  HIDDEN    -> AVAILABLE
+ *
+ * Không cho ẩn phòng đang LOCKED/RENTED (đang có giao dịch/đã cho thuê).
+ * Không reset approval (đây không phải thay đổi nội dung tin).
+ */
+async function setRoomVisibility(landlordId, roomId, visible) {
+  if (typeof visible !== 'boolean') {
+    throw new AppError('VALIDATION_ERROR', 'visible must be a boolean', 400);
+  }
+
+  const existing = await roomRepository.findById(roomId);
+  if (!existing) throw new AppError('NOT_FOUND', 'Room not found', 404);
+  if (existing.landlord_id !== landlordId) {
+    throw new AppError('FORBIDDEN', 'Not allowed to modify this room', 403);
+  }
+
+  const current = existing.status;
+
+  if (visible) {
+    // Bỏ ẩn: chỉ có ý nghĩa khi đang HIDDEN; các trạng thái khác coi như no-op.
+    if (current !== 'HIDDEN') {
+      return { room_id: roomId, status: current };
+    }
+    const updated = await roomRepository.update(roomId, { status: 'AVAILABLE', updated_at: db.fn.now() });
+    return { room_id: roomId, status: updated ? updated.status : 'AVAILABLE' };
+  }
+
+  // Ẩn phòng: chỉ cho phép khi đang AVAILABLE.
+  if (current === 'HIDDEN') {
+    return { room_id: roomId, status: current };
+  }
+  if (current !== 'AVAILABLE') {
+    throw new AppError('CONFLICT', 'Không thể ẩn phòng đang có giao dịch hoặc đã cho thuê.', 409);
+  }
+  const updated = await roomRepository.update(roomId, { status: 'HIDDEN', updated_at: db.fn.now() });
+  return { room_id: roomId, status: updated ? updated.status : 'HIDDEN' };
 }
 
 async function deleteRoom(landlordId, roomId) {
@@ -309,9 +368,57 @@ async function deleteRoom(landlordId, roomId) {
   });
 }
 
+const FALLBACK_ROOM_IMAGE = '/images/booking/host/studio-apartment.png';
+
+/**
+ * Landlord dashboard overview: room counts by bucket, average rating,
+ * monthly revenue for a year (selectable), and top-3 rated rooms.
+ */
+async function getOverview(landlordId, { year } = {}) {
+  const targetYear = Number(year) || new Date().getFullYear();
+
+  const [stats, revenueRows, topRated] = await Promise.all([
+    roomRepository.getLandlordStats(landlordId),
+    roomRepository.getLandlordMonthlyRevenue(landlordId, targetYear),
+    roomRepository.findTopRatedByLandlord(landlordId, 3),
+  ]);
+
+  const monthly = Array.from({ length: 12 }, (_, i) => ({ month: i + 1, amount: 0 }));
+  for (const row of revenueRows) {
+    const idx = Number(row.month) - 1;
+    if (idx >= 0 && idx < 12) monthly[idx].amount = Number(row.amount) || 0;
+  }
+  const totalRevenue = monthly.reduce((sum, m) => sum + m.amount, 0);
+
+  return {
+    stats: {
+      total: Number(stats.total) || 0,
+      rented: Number(stats.rented) || 0,
+      available: Number(stats.available) || 0,
+      pending: Number(stats.pending) || 0,
+      hidden: Number(stats.hidden) || 0,
+      averageRating: Number(stats.average_rating) || 0,
+    },
+    revenue: { year: targetYear, totalRevenue, monthly },
+    featuredRooms: topRated.map((r) => ({
+      room_id: r.room_id,
+      title: r.title,
+      detailed_address: r.detailed_address,
+      monthly_rent: Number(r.monthly_rent) || 0,
+      status: r.status,
+      approval_status: r.approval_status || null,
+      average_rating: Number(r.average_rating) || 0,
+      favorite_count: Number(r.favorite_count) || 0,
+      cover_image_url: r.cover_image_url || FALLBACK_ROOM_IMAGE,
+    })),
+  };
+}
+
 module.exports = {
   createRoom,
   listMyRooms,
   updateRoom,
+  setRoomVisibility,
   deleteRoom,
+  getOverview,
 };

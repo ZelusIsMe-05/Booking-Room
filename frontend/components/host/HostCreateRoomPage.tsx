@@ -205,10 +205,10 @@ export default function HostCreateRoomPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#FAF8FF] text-[#191B23]">
+    <main className="min-h-screen bg-slate-50 font-sans text-slate-900">
       <HostSidebar user={user} onLogout={handleLogout} activePage="listings" />
 
-      <section className="flex min-h-screen flex-col lg:ml-[272px]">
+      <section className="flex min-h-screen flex-col lg:ml-64">
         <header className="sticky top-0 z-10 flex h-16 items-center justify-end border-b border-[#E1E2ED] bg-[#FAF8FF] px-6 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
           <div className="flex items-center gap-2 text-[#004AC6]">
             <button

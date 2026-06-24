@@ -48,7 +48,7 @@ async function findPublicById(roomId, trx) {
     .leftJoin('users as u', 'u.user_id', 'r.landlord_id')
     .leftJoin('account_security as sec', 'sec.user_id', 'u.user_id')
     .where('r.room_id', roomId)
-    .where('r.status', 'AVAILABLE')
+    .whereIn('r.status', ['AVAILABLE', 'RENTED'])
     .whereExists(function () {
       this.select('*')
         .from('room_approvals as ra')
@@ -203,7 +203,7 @@ async function findPublic({ page = 1, limit = 20, filters = {}, sort = 'newest',
     .leftJoin('room_images as ri', function () {
       this.on('ri.room_id', 'r.room_id').andOnVal('ri.is_cover', '=', true);
     })
-    .where('r.status', 'AVAILABLE');
+    .whereIn('r.status', ['AVAILABLE', 'RENTED']);
 
   applyPublicRoomFilters(q, filters);
   applyApprovalConstraint(q, onlyApproved);
@@ -214,7 +214,7 @@ async function findPublic({ page = 1, limit = 20, filters = {}, sort = 'newest',
 }
 
 async function countPublic({ filters = {}, onlyApproved = true } = {}) {
-  const q = db('rooms as r').countDistinct({ total: 'r.room_id' }).where('r.status', 'AVAILABLE');
+  const q = db('rooms as r').countDistinct({ total: 'r.room_id' }).whereIn('r.status', ['AVAILABLE', 'RENTED']);
   applyPublicRoomFilters(q, filters);
   applyApprovalConstraint(q, onlyApproved);
   const [{ total }] = await q;
@@ -320,11 +320,18 @@ async function findByLandlord(landlordId, { page = 1, limit = 20, sortBy = 'crea
       'r.longitude',
       'r.latitude',
       'r.status',
+      'r.average_rating',
       'r.created_at',
       'r.updated_at',
-      'ra.approval_status'
+      'ra.approval_status',
+      db.raw('COALESCE(fav.favorite_count, 0)::int as favorite_count')
     )
     .leftJoin(approvalAgg, 'ra.room_id', 'r.room_id')
+    .leftJoin(
+      db('favorites').select('room_id').count('* as favorite_count').where('status', true).groupBy('room_id').as('fav'),
+      'fav.room_id',
+      'r.room_id'
+    )
     .where('r.landlord_id', landlordId)
     .modify((qb) => {
       if (status) qb.where('r.status', status);
@@ -455,6 +462,109 @@ async function updateApprovalStatus(roomId, status, trx) {
   return updated;
 }
 
+// ---------------------------------------------------------------------------
+// Landlord overview / dashboard aggregates
+// ---------------------------------------------------------------------------
+
+/**
+ * Effective approval status per room as a joinable subquery.
+ * room_approvals can hold multiple rows after edits; we surface PENDING when
+ * any pending exists, else APPROVED, else REJECTED.
+ */
+function approvalAggSubquery() {
+  return db('room_approvals')
+    .select('room_id')
+    .select(
+      db.raw(
+        `CASE
+           WHEN bool_or(approval_status = 'PENDING') THEN 'PENDING'
+           WHEN bool_or(approval_status = 'APPROVED') THEN 'APPROVED'
+           ELSE 'REJECTED'
+         END as approval_status`
+      )
+    )
+    .groupBy('room_id')
+    .as('ra');
+}
+
+/**
+ * Aggregate room counts by bucket + average rating for a landlord.
+ * Buckets are mutually exclusive (priority: hidden > pending > rented > available).
+ * RENTED and LOCKED are both counted as "rented" (occupied / in a deal).
+ */
+async function getLandlordStats(landlordId) {
+  const row = await db('rooms as r')
+    .leftJoin(approvalAggSubquery(), 'ra.room_id', 'r.room_id')
+    .where('r.landlord_id', landlordId)
+    .select(
+      db.raw('COUNT(*)::int as total'),
+      db.raw(`COUNT(*) FILTER (WHERE r.status = 'HIDDEN')::int as hidden`),
+      db.raw(`COUNT(*) FILTER (WHERE r.status <> 'HIDDEN' AND ra.approval_status = 'PENDING')::int as pending`),
+      db.raw(`COUNT(*) FILTER (WHERE r.status <> 'HIDDEN' AND (ra.approval_status IS NULL OR ra.approval_status <> 'PENDING') AND r.status IN ('RENTED','LOCKED'))::int as rented`),
+      db.raw(`COUNT(*) FILTER (WHERE r.status <> 'HIDDEN' AND (ra.approval_status IS NULL OR ra.approval_status <> 'PENDING') AND r.status = 'AVAILABLE')::int as available`),
+      db.raw(`COALESCE(ROUND(AVG(r.average_rating) FILTER (WHERE r.average_rating > 0), 2), 0)::float as average_rating`)
+    )
+    .first();
+
+  return row || { total: 0, hidden: 0, pending: 0, rented: 0, available: 0, average_rating: 0 };
+}
+
+/**
+ * Monthly revenue (SUCCESS transactions) for a landlord in a given year.
+ * Revenue = tiền cọc khách đã thanh toán thành công cho phòng của landlord.
+ * @returns {Promise<Array<{ month: number, amount: number }>>}
+ */
+async function getLandlordMonthlyRevenue(landlordId, year) {
+  const rows = await db('transactions as t')
+    .join('deposits as d', 't.deposit_id', 'd.deposit_id')
+    .where('d.landlord_id', landlordId)
+    .where('t.status', 'SUCCESS')
+    .whereRaw('EXTRACT(YEAR FROM t.created_at) = ?', [year])
+    .groupByRaw('EXTRACT(MONTH FROM t.created_at)')
+    .select(
+      db.raw('EXTRACT(MONTH FROM t.created_at)::int as month'),
+      db.raw('SUM(t.amount)::float as amount')
+    );
+
+  return rows;
+}
+
+/**
+ * Top-rated rooms of a landlord, with favourite count + cover image.
+ */
+async function findTopRatedByLandlord(landlordId, limit = 3) {
+  const favAgg = db('favorites')
+    .select('room_id')
+    .count('* as favorite_count')
+    .where('status', true)
+    .groupBy('room_id')
+    .as('fav');
+
+  const rows = await db('rooms as r')
+    .leftJoin(approvalAggSubquery(), 'ra.room_id', 'r.room_id')
+    .leftJoin(favAgg, 'fav.room_id', 'r.room_id')
+    .leftJoin('room_images as ri', function () {
+      this.on('ri.room_id', 'r.room_id').andOnVal('ri.is_cover', '=', true);
+    })
+    .where('r.landlord_id', landlordId)
+    .select(
+      'r.room_id',
+      'r.title',
+      'r.detailed_address',
+      'r.monthly_rent',
+      'r.status',
+      'r.average_rating',
+      'ra.approval_status',
+      db.raw('COALESCE(fav.favorite_count, 0)::int as favorite_count'),
+      'ri.image_url as cover_image_url'
+    )
+    .orderBy('r.average_rating', 'desc')
+    .orderBy('r.created_at', 'desc')
+    .limit(limit);
+
+  return rows;
+}
+
 module.exports = {
   findById,
   find,
@@ -471,4 +581,7 @@ module.exports = {
   findPendingRooms,
   countPendingRooms,
   updateApprovalStatus,
+  getLandlordStats,
+  getLandlordMonthlyRevenue,
+  findTopRatedByLandlord,
 };

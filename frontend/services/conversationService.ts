@@ -62,4 +62,8 @@ export const conversationService = {
   markAsRead: async (conversationId: string): Promise<ApiResponse<null>> => {
     return apiClient.patch<ApiResponse<null>>(`/conversations/${conversationId}/read`);
   },
+
+  deleteConversation: async (conversationId: string): Promise<ApiResponse<null>> => {
+    return apiClient.delete<ApiResponse<null>>(`/conversations/${conversationId}`);
+  },
 };

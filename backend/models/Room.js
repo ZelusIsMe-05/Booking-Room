@@ -39,7 +39,7 @@ function publicHostColumns() {
 function applyPublicRoomFilter(query) {
   query
     .join('room_approvals', 'rooms.room_id', 'room_approvals.room_id')
-    .where('rooms.status', 'AVAILABLE')
+    .whereIn('rooms.status', ['AVAILABLE', 'RENTED'])
     .where('room_approvals.approval_status', 'APPROVED');
 }
 

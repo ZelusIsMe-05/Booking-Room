@@ -87,6 +87,10 @@ export default function UserManagementPage() {
     fetchUsers();
   }, [page, limit, debouncedSearch, filterStatus]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page]);
+
   const handleToggleLock = async (userId: string, currentStatus: string) => {
     try {
       setActionLoading(userId);

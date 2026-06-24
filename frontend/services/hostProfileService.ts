@@ -20,7 +20,7 @@ export const hostProfileService = {
     formData.append('id_card_back', params.idCardBack);
 
     return apiClient.post<ApiResponse<HostVerificationResponse>>(
-      '/profile/host-verification',
+      '/auth/landlord/id-cards',
       formData
     );
   },

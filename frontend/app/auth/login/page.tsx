@@ -41,10 +41,19 @@ export default function LoginPage() {
           let success = false;
           try {
             const redirectUri = `${window.location.origin}/auth/login`;
-            const data = await loginWithOAuth(provider, code, redirectUri);
+            const storedRole = localStorage.getItem('oauth_role');
+            const role = storedRole === 'LANDLORD' ? 'LANDLORD' : 'TENANT';
+            const data = await loginWithOAuth(provider, code, redirectUri, role);
             localStorage.removeItem('oauth_provider');
-            success = true;
-            router.push(data?.user?.role === 'LANDLORD' ? '/host' : '/');
+            localStorage.removeItem('oauth_role');
+            const redirectParam = params.get('redirect');
+            if (data?.user?.role === 'LANDLORD') {
+              router.push('/host');
+            } else if (redirectParam) {
+              router.push(redirectParam);
+            } else {
+              router.push('/');
+            }
           } catch (err: any) {
             setServerError(err.message || 'Đăng nhập qua mạng xã hội thất bại. Vui lòng thử lại.');
             oauthCalled.current = false;
@@ -76,10 +85,14 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       const loggedInUser = await login(email.trim(), password);
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get('redirect');
       if (loggedInUser?.role === 'ADMIN') {
         router.push('/admin/dashboard');
       } else if (loggedInUser?.role === 'LANDLORD') {
         router.push('/host');
+      } else if (redirect) {
+        router.push(redirect);
       } else {
         router.push('/');
       }

@@ -284,6 +284,7 @@ async function createOAuthUser({
   avatarUrl,
   passwordHash,
   roleId,
+  roleName,
   provider,
   providerUserId,
 }) {
@@ -300,7 +301,17 @@ async function createOAuthUser({
       })
       .returning(['user_id']);
 
-    await trx('tenants').insert({ tenant_id: user.user_id });
+    if (roleName === 'LANDLORD') {
+      // Chủ nhà đăng ký qua OAuth: chờ Admin duyệt, CCCD nộp sau qua trang chờ duyệt.
+      await trx('landlords').insert({
+        landlord_id: user.user_id,
+        id_card_front_url: null,
+        id_card_back_url: null,
+        approval_status: 'PENDING',
+      });
+    } else {
+      await trx('tenants').insert({ tenant_id: user.user_id });
+    }
     await trx('account_security').insert({ user_id: user.user_id });
     await trx('oauth_accounts').insert({
       user_id: user.user_id,

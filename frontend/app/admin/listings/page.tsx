@@ -64,6 +64,10 @@ export default function ListingApprovalPage() {
     fetchRooms();
   }, [filterStatus, page, limit, debouncedSearch]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page]);
+
   const handleApprove = async (roomIdParam?: string) => {
     const roomId = roomIdParam || approvingRoomId;
     if (!roomId) return;

@@ -10,6 +10,9 @@ interface TenantChatBoxProps {
   peerName: string | null;
   peerAvatar: string | null;
   isMinimized: boolean;
+  isBubble?: boolean;
+  onRestore?: () => void;
+  onDestroy?: () => void;
   onClose: () => void;
   onToggleMinimize: () => void;
 }
@@ -19,6 +22,9 @@ export default function TenantChatBox({
   peerName,
   peerAvatar,
   isMinimized,
+  isBubble = false,
+  onRestore,
+  onDestroy,
   onClose,
   onToggleMinimize,
 }: TenantChatBoxProps) {
@@ -28,9 +34,52 @@ export default function TenantChatBox({
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [localUnreadCount, setLocalUnreadCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const myUserId = user?.userId;
+
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  const handleClearChat = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isMinimized) {
+      onToggleMinimize();
+    }
+    setShowConfirmDelete(true);
+  };
+
+  const executeClearChat = async () => {
+    setClearing(true);
+    try {
+      await conversationService.deleteConversation(conversationId);
+      
+      window.dispatchEvent(
+        new CustomEvent('show-toast', {
+          detail: {
+            message: 'Đã xóa lịch sử cuộc trò chuyện thành công.',
+            type: 'success',
+          },
+        })
+      );
+      
+      // Close/remove this chat from the context
+      onDestroy ? onDestroy() : onClose();
+    } catch (err: any) {
+      window.dispatchEvent(
+        new CustomEvent('show-toast', {
+          detail: {
+            message: err?.message || 'Không thể xóa cuộc trò chuyện.',
+            type: 'error',
+          },
+        })
+      );
+      setShowConfirmDelete(false);
+    } finally {
+      setClearing(false);
+    }
+  };
 
   // Load message history
   useEffect(() => {
@@ -53,14 +102,14 @@ export default function TenantChatBox({
       }
     }
 
-    if (conversationId && !isMinimized) {
+    if (conversationId && !isMinimized && !isBubble) {
       loadMessages();
     }
-  }, [conversationId, isMinimized]);
+  }, [conversationId, isMinimized, isBubble]);
 
   // Socket room joining and realtime message listening
   useEffect(() => {
-    if (!socket || !conversationId || isMinimized) return;
+    if (!socket || !conversationId) return;
 
     socket.emit('join_room', conversationId);
 
@@ -71,8 +120,13 @@ export default function TenantChatBox({
           if (prev.some((m) => m.message_id === msg.message_id)) return prev;
           return [...prev, msg];
         });
-        // Auto mark as read when chat is open and active
-        conversationService.markAsRead(conversationId).catch(() => undefined);
+        
+        if (isBubble) {
+          setLocalUnreadCount((c) => c + 1);
+        } else {
+          // Auto mark as read when chat is open and active
+          conversationService.markAsRead(conversationId).catch(() => undefined);
+        }
       }
     };
 
@@ -82,14 +136,22 @@ export default function TenantChatBox({
       socket.emit('leave_room', conversationId);
       socket.off('receive_message', handleReceiveMessage);
     };
-  }, [socket, conversationId, isMinimized]);
+  }, [socket, conversationId, isBubble]);
+
+  // Reset unread count when chat is restored
+  useEffect(() => {
+    if (!isBubble && conversationId) {
+      setLocalUnreadCount(0);
+      conversationService.markAsRead(conversationId).catch(() => undefined);
+    }
+  }, [isBubble, conversationId]);
 
   // Scroll to bottom when messages or minimize state changes
   useEffect(() => {
-    if (!isMinimized) {
+    if (!isMinimized && !isBubble) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isMinimized]);
+  }, [messages, isMinimized, isBubble]);
 
   // Send message
   const handleSend = async () => {
@@ -130,6 +192,51 @@ export default function TenantChatBox({
     return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
   };
 
+  if (isBubble) {
+    return (
+      <div className="relative group select-none">
+        {/* Tooltip */}
+        <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 hidden group-hover:block bg-slate-900/90 text-white text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-xl z-50 pointer-events-none">
+          {peerName || 'Chủ trọ'}
+        </div>
+        
+        {/* Circular Avatar Bubble */}
+        <button
+          type="button"
+          onClick={onRestore}
+          className="w-12 h-12 rounded-full shadow-2xl border-2 border-white bg-[#004AC6] flex items-center justify-center relative overflow-hidden transition hover:scale-105 active:scale-95 animate-[fadeIn_0.2s_ease-out]"
+        >
+          {peerAvatar ? (
+            <img src={peerAvatar} alt={peerName || 'Chủ trọ'} className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-white font-bold text-sm">
+              {(peerName || '?').charAt(0).toUpperCase()}
+            </span>
+          )}
+          {/* Status Dot */}
+          <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-white" />
+        </button>
+
+        {/* Unread Count Badge */}
+        {localUnreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-md animate-bounce select-none">
+            {localUnreadCount}
+          </span>
+        )}
+
+        {/* Dismiss Button on Hover */}
+        <button
+          type="button"
+          onClick={onDestroy}
+          className="absolute -top-1.5 -left-1.5 hidden group-hover:flex w-5 h-5 rounded-full bg-slate-200 hover:bg-red-500 hover:text-white items-center justify-center text-[10px] font-bold text-slate-600 transition shadow"
+          title="Đóng hoàn toàn"
+        >
+          ✕
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex flex-col bg-white rounded-t-2xl shadow-2xl border border-slate-200/80 overflow-hidden transition-all duration-200"
@@ -164,6 +271,15 @@ export default function TenantChatBox({
         {/* Header Controls */}
         <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button
+            onClick={handleClearChat}
+            className="w-6 h-6 hover:bg-white/10 rounded flex items-center justify-center transition-colors text-white/90"
+            title="Xóa lịch sử cuộc trò chuyện"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+          <button
             onClick={onToggleMinimize}
             className="w-6 h-6 hover:bg-white/10 rounded flex items-center justify-center transition-colors text-white/90"
             title={isMinimized ? 'Mở rộng' : 'Thu nhỏ'}
@@ -183,6 +299,38 @@ export default function TenantChatBox({
       {/* Body & Footer (Hidden when minimized) */}
       {!isMinimized && (
         <>
+          {showConfirmDelete ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50 text-center select-none animate-[fadeIn_0.2s_ease-out]">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-3">
+                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <h4 className="text-sm font-bold text-slate-800">Xóa lịch sử chat?</h4>
+              <p className="text-xs text-slate-500 mt-1 mb-4 leading-relaxed">
+                Lịch sử trò chuyện sẽ bị ẩn đi khỏi hộp thư của bạn. Việc này không ảnh hưởng đến lịch sử của Chủ trọ.
+              </p>
+              <div className="flex gap-2 w-full">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmDelete(false)}
+                  disabled={clearing}
+                  className="flex-1 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition disabled:opacity-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={executeClearChat}
+                  disabled={clearing}
+                  className="flex-1 py-2 text-xs font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {clearing ? 'Đang xóa...' : 'Xác nhận'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Message List */}
           <div className="flex-1 overflow-y-auto p-3 bg-slate-50 space-y-3 flex flex-col">
             {loading ? (
@@ -247,6 +395,8 @@ export default function TenantChatBox({
           </div>
         </>
       )}
-    </div>
+    </>
+  )}
+  </div>
   );
 }

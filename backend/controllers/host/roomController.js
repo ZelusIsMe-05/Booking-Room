@@ -43,9 +43,35 @@ async function deleteRoom(req, res, next) {
 
 async function updateRoomStatus(req, res, next) {
   try {
-    // await roomService.updateRoomStatus(req.user.userId, req.params.roomId, req.body);
-    return sendSuccess(res, { status: 200, message: `Stub: Host cập nhật trạng thái phòng ID ${req.params.roomId}` });
+    const body = req.body || {};
+    // Accept either { visible: boolean } or { action: 'show' | 'hide' }.
+    let visible;
+    if (typeof body.visible === 'boolean') {
+      visible = body.visible;
+    } else if (body.action === 'show' || body.action === 'hide') {
+      visible = body.action === 'show';
+    } else {
+      throw new AppError('VALIDATION_ERROR', "Cần truyền 'visible' (boolean) hoặc 'action' ('show'|'hide').", 400);
+    }
+
+    const result = await roomService.setRoomVisibility(req.user.userId, req.params.roomId, visible);
+    return sendSuccess(res, {
+      status: 200,
+      message: visible ? 'Đã hiển thị tin đăng.' : 'Đã tạm ẩn tin đăng.',
+      data: result,
+    });
   } catch (err) {
+    if (!(err instanceof AppError)) console.error('[host.roomController.updateRoomStatus ERROR]', err);
+    return next(err instanceof AppError ? err : new AppError('UNEXPECTED', 'Đã xảy ra lỗi.', 500));
+  }
+}
+
+async function getOverview(req, res, next) {
+  try {
+    const result = await roomService.getOverview(req.user.userId, { year: req.query.year });
+    return sendSuccess(res, { status: 200, message: 'Tổng quan kinh doanh', data: result });
+  } catch (err) {
+    if (!(err instanceof AppError)) console.error('[host.roomController.getOverview ERROR]', err);
     return next(err instanceof AppError ? err : new AppError('UNEXPECTED', 'Đã xảy ra lỗi.', 500));
   }
 }
@@ -56,4 +82,5 @@ module.exports = {
   updateRoom,
   deleteRoom,
   updateRoomStatus,
+  getOverview,
 };

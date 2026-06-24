@@ -10,12 +10,15 @@ export interface ActiveChat {
   peerName: string | null;
   peerAvatar: string | null;
   isMinimized: boolean;
+  isBubble?: boolean;
 }
 
 interface TenantChatContextType {
   openChats: ActiveChat[];
   openChatWith: (peerUserId: string, name: string | null, avatar: string | null) => Promise<void>;
   closeChat: (conversationId: string) => void;
+  removeChat: (conversationId: string) => void;
+  restoreChat: (conversationId: string) => void;
   toggleMinimize: (conversationId: string) => void;
 }
 
@@ -64,9 +67,9 @@ export function TenantChatProvider({ children }: { children: ReactNode }) {
     // 1. Check if chat is already open
     const existing = openChats.find((chat) => chat.peerUserId === peerUserId);
     if (existing) {
-      // Bring it to focus and maximize it
+      // Bring it to focus, maximize it, and remove bubble state
       const updated = openChats.map((chat) =>
-        chat.peerUserId === peerUserId ? { ...chat, isMinimized: false } : chat
+        chat.peerUserId === peerUserId ? { ...chat, isMinimized: false, isBubble: false } : chat
       );
       saveChats(updated);
       return;
@@ -85,6 +88,7 @@ export function TenantChatProvider({ children }: { children: ReactNode }) {
           peerName: name || conv.peer_name || 'Chủ trọ',
           peerAvatar: avatar || conv.peer_avatar,
           isMinimized: false,
+          isBubble: false,
         };
 
         // Limit to max 2 open chat boxes
@@ -102,7 +106,24 @@ export function TenantChatProvider({ children }: { children: ReactNode }) {
   };
 
   const closeChat = (conversationId: string) => {
+    // Soft close: convert to a bubble
+    const updated = openChats.map((chat) =>
+      chat.conversationId === conversationId ? { ...chat, isBubble: true } : chat
+    );
+    saveChats(updated);
+  };
+
+  const removeChat = (conversationId: string) => {
+    // Hard close: remove completely
     const updated = openChats.filter((chat) => chat.conversationId !== conversationId);
+    saveChats(updated);
+  };
+
+  const restoreChat = (conversationId: string) => {
+    // Maximize from bubble state
+    const updated = openChats.map((chat) =>
+      chat.conversationId === conversationId ? { ...chat, isBubble: false, isMinimized: false } : chat
+    );
     saveChats(updated);
   };
 
@@ -114,7 +135,7 @@ export function TenantChatProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <TenantChatContext.Provider value={{ openChats, openChatWith, closeChat, toggleMinimize }}>
+    <TenantChatContext.Provider value={{ openChats, openChatWith, closeChat, removeChat, restoreChat, toggleMinimize }}>
       {children}
     </TenantChatContext.Provider>
   );

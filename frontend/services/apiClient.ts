@@ -111,6 +111,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     const errorMessage = data?.message || `Lỗi hệ thống (${response.status})`;
     const error = new Error(errorMessage) as any;
     error.status = response.status;
+    error.code = data?.code || null;
     error.data = data;
     throw error;
   }
@@ -118,9 +119,50 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   return data as T;
 }
 
+/**
+ * Fetch a file (e.g. CSV export) and trigger a browser download.
+ * Sends the auth token; reads the filename from Content-Disposition if present.
+ */
+async function downloadFile(endpoint: string, fallbackName: string): Promise<void> {
+  const headers = new Headers();
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('accessToken');
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const response = await fetch(`${BASE_URL}${endpoint}`, { headers, cache: 'no-store' });
+  if (!response.ok) {
+    let message = `Lỗi tải file (${response.status})`;
+    try {
+      const body = await response.json();
+      message = body?.message || message;
+    } catch {
+      /* response is not JSON */
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match ? match[1] : fallbackName;
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const apiClient = {
-  get: <T>(endpoint: string, options?: RequestInit) => 
-    request<T>(endpoint, { ...options, method: 'GET' }),
+  downloadFile,
+
+  get: <T>(endpoint: string, options?: RequestInit) =>
+    // no-store: tránh browser trả dữ liệu GET cũ sau khi vừa cập nhật (PATCH/POST).
+    request<T>(endpoint, { cache: 'no-store', ...options, method: 'GET' }),
     
   post: <T>(endpoint: string, body?: any, options?: RequestInit) => 
     request<T>(endpoint, { 

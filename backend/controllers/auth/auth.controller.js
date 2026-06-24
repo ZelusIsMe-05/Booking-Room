@@ -169,12 +169,13 @@ async function oauthLogin(req, res, next) {
     }
 
     // req.body đã được validate + trim bởi validate({ body: oauthLoginSchema }).
-    const { code, redirectUri } = req.body;
+    const { code, redirectUri, role } = req.body;
 
     const { user, tokens, isNewUser } = await authService.loginWithOAuth({
       provider,
       code,
       redirectUri,
+      role,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
     });

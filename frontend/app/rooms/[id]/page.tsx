@@ -17,7 +17,7 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
       room = mapBackendRoomToBookingRoom(res.data);
     }
   } catch (error) {
-    console.log(`Error fetching room ${id} server-side:`, (error as any).message || error);
+    // Expected to fail server-side if authentication (token) is needed (e.g. LOCKED or RENTED rooms)
   }
 
   // If the server-side fetch failed (e.g. room is LOCKED or requires token),

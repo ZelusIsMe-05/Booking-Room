@@ -61,6 +61,10 @@ export default function SupportPage() {
     fetchTickets();
   }, [filterStatus, filterCategory, page, limit, debouncedSearch]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page]);
+
   const handleUpdateStatus = async (ticketId: string, status: string) => {
     try {
       setActionLoading(ticketId);

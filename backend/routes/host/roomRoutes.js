@@ -7,6 +7,9 @@ const { uploadRoomImages } = require('../../middlewares/uploadMiddleware');
 // Host: list own rooms (cho phép cả landlord chưa duyệt xem danh sách + trạng thái)
 router.get('/my', requireAuth, authorize('LANDLORD'), roomController.listMyRooms);
 
+// Host: business overview / dashboard aggregates (counts, avg rating, revenue, top rooms)
+router.get('/overview', requireAuth, authorize('LANDLORD'), roomController.getOverview);
+
 // Host: create a room (multipart images in field `images`) — yêu cầu đã được duyệt
 router.post('/', requireAuth, authorize('LANDLORD'), requireApprovedLandlord, uploadRoomImages, roomController.createRoom);
 

@@ -12,6 +12,7 @@ export const metadata: Metadata = {
 };
 
 import ToastContainer from '@/components/common/ToastContainer';
+import LoginPromptModal from '@/components/common/LoginPromptModal';
 import { TenantChatProvider } from '@/context/TenantChatContext';
 import TenantChatContainer from '@/components/booking/TenantChatContainer';
 import { SocketProvider } from '@/context/SocketContext';
@@ -32,6 +33,7 @@ export default function RootLayout({
             </TenantChatProvider>
           </SocketProvider>
           <ToastContainer />
+          <LoginPromptModal />
         </AuthProvider>
       </body>
     </html>

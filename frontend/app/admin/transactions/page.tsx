@@ -62,6 +62,10 @@ export default function TransactionsPage() {
     fetchTransactions();
   }, [filterStatus, page, limit, debouncedSearch]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page]);
+
   const handleExport = () => {
     if (!transactions.length) return;
     const exportData = transactions.map(t => ({

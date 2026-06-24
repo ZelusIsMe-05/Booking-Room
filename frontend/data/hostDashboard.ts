@@ -97,7 +97,7 @@ export const revenueData: RevenueData = {
 
 // ─── Dashboard Room Cards ─────────────────────────────────────────────────────
 
-export type DashboardRoomStatus = 'rented' | 'available' | 'pending';
+export type DashboardRoomStatus = 'rented' | 'available' | 'pending' | 'hidden';
 
 export interface DashboardRoom {
   id: string;

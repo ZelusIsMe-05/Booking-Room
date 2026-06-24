@@ -7,7 +7,7 @@ import { vietnamAdministrativeUnits } from '@/utils/vietnamAdministrativeUnits';
 import LocationPickerMap from '../guest/LocationPickerMap';
 
 const roomTypes = ['Phòng trọ', 'Căn hộ', 'Ở ghép'];
-const budgetOptions = ['Dưới 1 triệu', '1 - 3 triệu', 'Trên 3 triệu'];
+const budgetOptions = ['Dưới 3 triệu', '3 - 5 triệu', '5 - 10 triệu', 'Trên 10 triệu'];
 
 // ── Nominatim autocomplete ────────────────────────────────────────────────────
 

@@ -1,12 +1,20 @@
 'use client';
 
-export default function SocialButtons({ mode }: { mode: 'Đăng nhập' | 'Đăng ký' }) {
+export default function SocialButtons({
+  mode,
+  role = 'TENANT',
+}: {
+  mode: 'Đăng nhập' | 'Đăng ký';
+  role?: 'TENANT' | 'LANDLORD';
+}) {
   const handleOAuthRedirect = (provider: 'google' | 'facebook') => {
     if (typeof window === 'undefined') return;
 
     // Use current origin to construct redirect URI
     const redirectUri = `${window.location.origin}/auth/login`;
     localStorage.setItem('oauth_provider', provider);
+    // Vai trò chỉ áp dụng khi tạo tài khoản OAuth mới (chủ yếu từ trang Đăng ký).
+    localStorage.setItem('oauth_role', role);
 
     let authUrl = '';
     if (provider === 'google') {
