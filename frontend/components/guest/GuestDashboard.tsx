@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import BookingChatFab from '@/components/booking/BookingChatFab';
 import BookingFooter from '@/components/booking/BookingFooter';
 import BookingHeader from '@/components/booking/BookingHeader';
@@ -10,18 +10,22 @@ import RoomCard from '@/components/booking/RoomCard';
 import SearchBento from '@/components/booking/SearchBento';
 import { roomService, mapBackendRoomToBookingRoom } from '@/services/roomService';
 import { favoriteService } from '@/services/favoriteService';
+import { useAuth } from '@/context/AuthContext';
 import type { BookingRoom } from '@/data/bookingRooms';
 
 export default function GuestDashboard() {
+  const { user, loading: authLoading } = useAuth();
   const [rooms, setRooms] = useState<BookingRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [favoriteRooms, setFavoriteRooms] = useState<BookingRoom[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [favoritesLoading, setFavoritesLoading] = useState(false);
+  const isTenant = user?.role?.trim().toUpperCase() === 'TENANT';
 
-  const fetchFavorites = async () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-    if (!token) {
+  const fetchFavorites = useCallback(async () => {
+    // The favorites API is tenant-only. Do not issue the request just because a
+    // different authenticated role happens to visit the public home page.
+    if (!isTenant) {
       setFavoriteRooms([]);
       setFavoriteIds(new Set());
       return;
@@ -41,9 +45,29 @@ export default function GuestDashboard() {
     } finally {
       setFavoritesLoading(false);
     }
-  };
+  }, [isTenant]);
 
   const handleToggleFavorite = async (roomId: string) => {
+    if (authLoading) return;
+
+    if (!isTenant) {
+      if (user) {
+        window.dispatchEvent(
+          new CustomEvent('show-toast', {
+            detail: { message: 'Chức năng lưu phòng chỉ dành cho tài khoản Tenant.', type: 'error' }
+          })
+        );
+        return;
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('show-login-prompt', {
+          detail: { redirectUrl: window.location.href }
+        })
+      );
+      return;
+    }
+
     const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
     if (!token) {
       window.dispatchEvent(
@@ -106,8 +130,12 @@ export default function GuestDashboard() {
       }
     }
     loadFeaturedRooms();
-    fetchFavorites();
   }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+    fetchFavorites();
+  }, [authLoading, fetchFavorites]);
 
   return (
     <div className="min-h-screen bg-booking-surface text-booking-text">
@@ -181,48 +209,50 @@ export default function GuestDashboard() {
           )}
         </section>
 
-        {/* Phòng yêu thích */}
-        <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
-          <div className="mb-6 flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-2xl font-bold text-booking-text">Phòng yêu thích</h2>
-              <p className="mt-1 text-sm text-booking-muted">Những phòng bạn đã lưu lại để theo dõi.</p>
+        {/* Phòng yêu thích chỉ là dữ liệu cá nhân của Tenant. */}
+        {isTenant && (
+          <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
+            <div className="mb-6 flex items-end justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-booking-text">Phòng yêu thích</h2>
+                <p className="mt-1 text-sm text-booking-muted">Những phòng bạn đã lưu lại để theo dõi.</p>
+              </div>
+              <Link href="/rooms/favorites" className="shrink-0 text-sm font-bold text-booking-primary transition hover:text-booking-primaryDark sm:text-base">
+                Xem tất cả
+              </Link>
             </div>
-            <Link href="/rooms/favorites" className="shrink-0 text-sm font-bold text-booking-primary transition hover:text-booking-primaryDark sm:text-base">
-              Xem tất cả
-            </Link>
-          </div>
 
-          {favoritesLoading ? (
-            <div className="grid gap-6 md:grid-cols-2">
-              {[1, 2].map((n) => (
-                <div key={n} className="animate-pulse rounded-2xl border border-booking-border bg-white overflow-hidden shadow-sm h-[320px]">
-                  <div className="bg-slate-200 h-48 w-full" />
-                  <div className="p-4 space-y-3">
-                    <div className="h-4 bg-slate-200 rounded w-3/4" />
-                    <div className="h-4 bg-slate-200 rounded w-1/2" />
+            {favoritesLoading ? (
+              <div className="grid gap-6 md:grid-cols-2">
+                {[1, 2].map((n) => (
+                  <div key={n} className="animate-pulse rounded-2xl border border-booking-border bg-white overflow-hidden shadow-sm h-[320px]">
+                    <div className="bg-slate-200 h-48 w-full" />
+                    <div className="p-4 space-y-3">
+                      <div className="h-4 bg-slate-200 rounded w-3/4" />
+                      <div className="h-4 bg-slate-200 rounded w-1/2" />
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : favoriteRooms.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-booking-border bg-white p-12 text-center text-booking-muted font-medium">
-              Chưa có phòng yêu thích nào.
-            </div>
-          ) : (
-            <div className="grid gap-6 md:grid-cols-2">
-              {favoriteRooms.map((room, index) => (
-                <RoomCard
-                  key={room.id}
-                  room={room}
-                  featured={index === 0 || index === 3}
-                  isFavorited={true}
-                  onToggleFavorite={handleToggleFavorite}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+                ))}
+              </div>
+            ) : favoriteRooms.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-booking-border bg-white p-12 text-center text-booking-muted font-medium">
+                Chưa có phòng yêu thích nào.
+              </div>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2">
+                {favoriteRooms.map((room, index) => (
+                  <RoomCard
+                    key={room.id}
+                    room={room}
+                    featured={index === 0 || index === 3}
+                    isFavorited={true}
+                    onToggleFavorite={handleToggleFavorite}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </main>
 
       <BookingFooter />

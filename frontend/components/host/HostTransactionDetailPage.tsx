@@ -14,6 +14,7 @@ function formatTransactionVND(amount: number): string {
 // Status badge colours, matching the tone used across the Host area.
 const STATUS_BADGE: Record<string, string> = {
   completed: 'bg-[#86F2E4] text-[#006F66]',
+  awaiting: 'bg-[#FFDDB0] text-[#943700]',
   pending: 'bg-[#FFDDB0] text-[#943700]',
   processing: 'bg-[#D6E4FF] text-[#004AC6]',
   cancelled: 'bg-[#FFDAD6] text-[#BA1A1A]',
@@ -181,10 +182,18 @@ export default function HostTransactionDetailPage({ transactionId }: { transacti
 
                       <div className="mt-6 space-y-3 text-right text-base">
                         <p><span className="text-[#434655]">Tổng cộng gộp:</span> <span className="ml-6">{formatTransactionVND(detail.subtotal)}</span></p>
-                        <p><span className="text-[#434655]">Phí hoa hồng hệ thống (10%):</span> <span className="ml-6 text-[#BA1A1A]">({formatTransactionVND(Math.abs(detail.commission))})</span></p>
+                        <p><span className="text-[#434655]">Phí hoa hồng hệ thống ({detail.commissionPercent}%):</span> <span className="ml-6 text-[#BA1A1A]">({formatTransactionVND(Math.abs(detail.commission))})</span></p>
+                        {detail.settlementStatus !== 'none' && (
+                          <p className="flex items-center justify-end gap-2">
+                            <span className="text-[#434655]">Trạng thái giải ngân:</span>
+                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold leading-3 tracking-[0.6px] ${detail.settlementStatus === 'disbursed' ? 'bg-[#86F2E4] text-[#006F66]' : 'bg-[#FFDDB0] text-[#943700]'}`}>
+                              {detail.settlementLabel}
+                            </span>
+                          </p>
+                        )}
                         <div className="border-t-2 border-[#004AC6] pt-5">
                           <p className="text-2xl font-bold leading-8 text-[#004AC6]">
-                            Thực nhận: <span className="ml-6">{formatTransactionVND(detail.netPayout)}</span>
+                            {detail.settlementStatus === 'disbursed' ? 'Đã thực nhận' : 'Dự kiến thực nhận'}: <span className="ml-6">{formatTransactionVND(detail.netPayout)}</span>
                           </p>
                         </div>
                       </div>

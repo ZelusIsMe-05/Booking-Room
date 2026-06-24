@@ -1,11 +1,28 @@
 const revenueRepository = require('../../repositories/host/revenueRepository');
 
-const COMMISSION_RATE = 0.1; // 10% platform commission
+// 10% — KHỚP với hằng số COMMISSION_RATE phía Admin (services/payment/transactionService.js:
+// disburseTransaction). Chỉ dùng để ước tính "thực nhận kỳ vọng" cho các giao dịch
+// còn PENDING (chưa giải ngân nên chưa có commission_rate thực).
+const COMMISSION_RATE = 0.1;
 
 const MONTH_LABELS = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
 
-function net(gross) {
-  return Math.round((Number(gross) || 0) * (1 - COMMISSION_RATE));
+/**
+ * "Thực nhận" cho một dòng ledger:
+ *  - RECEIVED → dùng số host_incomes.income thực tế (đã giải ngân)
+ *  - PENDING  → ước tính = gross * (1 - 10%)
+ * @returns {{ net: number, fee: number, settled: boolean }}
+ */
+function settlementAmounts(row) {
+  const gross = Number(row.amount) || 0;
+  const settled = row.income_status === 'RECEIVED';
+  if (settled) {
+    const net = Number(row.income) || 0;
+    return { net, fee: gross - net, settled };
+  }
+  const rate = row.commission_rate != null ? Number(row.commission_rate) / 100 : COMMISSION_RATE;
+  const fee = Math.round(gross * rate);
+  return { net: gross - fee, fee, settled };
 }
 
 /**
@@ -62,16 +79,19 @@ async function getOverview(landlordId, range = 'month') {
   const normalized = ['week', 'month', 'quarter', 'year'].includes(range) ? range : 'month';
   const win = rangeWindow(normalized);
 
-  const [s, trendRows, totalGross, statusCounts] = await Promise.all([
+  const [s, trendRows, totals, statusCounts] = await Promise.all([
     revenueRepository.summary(landlordId, win),
     // Trend always shows the last 6 months regardless of range.
-    revenueRepository.monthlyTrend(landlordId, new Date(new Date().getFullYear(), new Date().getMonth() - 5, 1).toISOString()),
-    revenueRepository.totalCompletedGross(landlordId),
+    revenueRepository.monthlyTrend(
+      landlordId,
+      new Date(new Date().getFullYear(), new Date().getMonth() - 5, 1).toISOString(),
+    ),
+    revenueRepository.allTimeTotals(landlordId),
     revenueRepository.statusBreakdown(landlordId, win),
   ]);
 
-  const paidThis = net(s.paid_gross);
-  const paidPrev = net(s.paid_gross_prev);
+  const paidThis = Math.round(Number(s.net_received) || 0);
+  const paidPrev = Math.round(Number(s.net_received_prev) || 0);
   const growthRate = paidPrev > 0
     ? Math.round(((paidThis - paidPrev) / paidPrev) * 1000) / 10
     : paidThis > 0
@@ -79,10 +99,12 @@ async function getOverview(landlordId, range = 'month') {
       : 0;
 
   const summary = {
-    // Net revenue across ALL completed (ACCEPTED) deposits, all-time.
-    totalRevenue: net(totalGross),
+    // Tổng doanh thu = tổng transactions đã được admin phân phối (gross), all-time.
+    totalRevenue: Math.round(totals.grossReceived),
+    // Thực nhận (net = tổng host_incomes.income) đã giải ngân trong kỳ.
     paidRevenue: paidThis,
-    pendingSettlement: net(s.pending_gross),
+    // Doanh thu (gross) còn chờ admin phân phối.
+    pendingSettlement: Math.round(Number(s.pending_gross) || 0),
     completedOrders: Number(s.completed_orders) || 0,
     growthRate,
     statusBreakdown: statusCounts,
@@ -93,16 +115,16 @@ async function getOverview(landlordId, range = 'month') {
   const byKey = new Map(
     trendRows.map((r) => {
       const d = new Date(r.month_start);
-      return [`${d.getFullYear()}-${d.getMonth() + 1}`, Number(r.gross) || 0];
+      return [`${d.getFullYear()}-${d.getMonth() + 1}`, { gross: Number(r.gross) || 0, net: Number(r.net) || 0 }];
     }),
   );
   const trend = [];
   let maxRevenue = -1;
   for (let i = 5; i >= 0; i -= 1) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const gross = byKey.get(`${d.getFullYear()}-${d.getMonth() + 1}`) || 0;
-    trend.push({ label: MONTH_LABELS[d.getMonth()], revenue: gross, profit: net(gross) });
-    if (gross > maxRevenue) maxRevenue = gross;
+    const bucket = byKey.get(`${d.getFullYear()}-${d.getMonth() + 1}`) || { gross: 0, net: 0 };
+    trend.push({ label: MONTH_LABELS[d.getMonth()], revenue: bucket.gross, profit: bucket.net });
+    if (bucket.gross > maxRevenue) maxRevenue = bucket.gross;
   }
   // Highlight the highest-revenue month (only when there is revenue).
   if (maxRevenue > 0) {
@@ -123,9 +145,9 @@ function formatDate(value) {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
-function stayPeriod(row) {
+function settlementPeriod(row) {
   const from = formatDate(row.created_at);
-  const to = formatDate(row.host_accepted_at || row.confirmed_at);
+  const to = formatDate(row.disbursed_at);
   if (to && to !== from) return `${from} - ${to}`;
   return from;
 }
@@ -142,8 +164,8 @@ async function listSettlements(landlordId, query = {}) {
 
   return {
     items: items.map((row) => {
-      const gross = Number(row.deposit_amount) || 0;
-      const fee = Math.round(gross * COMMISSION_RATE);
+      const gross = Number(row.amount) || 0;
+      const { net, fee, settled } = settlementAmounts(row);
       return {
         id: bookingCode(row.deposit_id),
         depositId: row.deposit_id,
@@ -151,11 +173,12 @@ async function listSettlements(landlordId, query = {}) {
         tenantName: row.tenant_name || 'Khách',
         imageSrc: row.cover_image_url || '/images/booking/host/studio-apartment.png',
         imageAlt: row.room_title,
-        stayPeriod: stayPeriod(row),
+        stayPeriod: settlementPeriod(row),
         customerPayment: gross,
         platformFee: -fee,
-        netAmount: gross - fee,
-        status: 'completed',
+        netAmount: net,
+        // 'completed' = đã giải ngân, 'pending' = đang đối soát (chờ admin giải ngân).
+        status: settled ? 'completed' : 'pending',
       };
     }),
     pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
@@ -172,7 +195,7 @@ async function exportSettlements(landlordId, query = {}) {
   });
 
   const headers = [
-    'Mã đơn',
+    'Mã giao dịch',
     'Phòng',
     'Khách thuê',
     'Thời gian',
@@ -183,17 +206,17 @@ async function exportSettlements(landlordId, query = {}) {
   ];
 
   const data = rows.map((row) => {
-    const gross = Number(row.deposit_amount) || 0;
-    const fee = Math.round(gross * COMMISSION_RATE);
+    const gross = Number(row.amount) || 0;
+    const { net, fee, settled } = settlementAmounts(row);
     return [
       bookingCode(row.deposit_id),
       row.room_title || '',
       row.tenant_name || 'Khách',
-      stayPeriod(row),
+      settlementPeriod(row),
       gross,
       fee,
-      gross - fee,
-      'Đã hoàn tất',
+      net,
+      settled ? 'Đã giải ngân' : 'Đang đối soát',
     ];
   });
 

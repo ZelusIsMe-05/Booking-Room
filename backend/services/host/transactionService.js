@@ -15,9 +15,10 @@ const DEPOSIT_TO_UI = {
 
 const STATUS_LABEL = {
   completed: 'Đã hoàn tất',
+  awaiting: 'Đang phê duyệt',
   pending: 'Chờ duyệt',
   processing: 'Đang xử lý',
-  cancelled: 'Đã hủy',
+  cancelled: 'Đã từ chối',
 };
 
 const PAYMENT_METHOD_LABEL = {
@@ -28,6 +29,19 @@ const PAYMENT_METHOD_LABEL = {
 
 function uiStatus(depositStatus) {
   return DEPOSIT_TO_UI[depositStatus] || 'processing';
+}
+
+/**
+ * Trạng thái hiển thị ở danh sách giao dịch, kết hợp vòng đời đơn cọc + giải ngân:
+ *  - ACCEPTED + đã giải ngân  → 'completed'  (Đã hoàn tất)
+ *  - ACCEPTED + chưa giải ngân → 'awaiting'  (Đang phê duyệt — chờ admin)
+ *  - REJECTED/CANCELLED/EXPIRED → 'cancelled' (Đã từ chối)
+ *  - còn lại (PROCESSING/CONFIRMED) → 'processing' (Đang xử lý)
+ */
+function deriveStatus(row) {
+  if (['CANCELLED', 'REJECTED', 'EXPIRED'].includes(row.status)) return 'cancelled';
+  if (row.status === 'ACCEPTED') return row.is_disbursed ? 'completed' : 'awaiting';
+  return 'processing';
 }
 
 function bookingCode(depositId) {
@@ -60,7 +74,7 @@ function formatDateTime(value) {
 }
 
 function mapListItem(row) {
-  const status = uiStatus(row.status);
+  const status = deriveStatus(row);
   return {
     id: row.deposit_id,
     bookingCode: bookingCode(row.deposit_id),
@@ -156,11 +170,37 @@ async function getTransactionDetail(landlordId, depositId) {
   const row = await transactionRepository.detailByLandlord(landlordId, depositId);
   if (!row) throw new AppError('NOT_FOUND', 'Không tìm thấy giao dịch.', 404);
 
-  const status = uiStatus(row.status);
+  // Trạng thái nhất quán với danh sách: ACCEPTED tách theo việc đã giải ngân.
+  let status = uiStatus(row.status);
+  if (row.status === 'ACCEPTED') status = row.payment?.is_disbursed ? 'completed' : 'awaiting';
   const deposit = Number(row.deposit_amount) || 0;
-  const subtotal = deposit;
-  const commission = Math.round(subtotal * COMMISSION_RATE);
-  const netPayout = subtotal - commission;
+  // Gross thực tế khách đã trả (transaction), fallback về deposit_amount.
+  const gross = row.payment?.amount != null ? Number(row.payment.amount) : deposit;
+  const subtotal = gross;
+
+  // Hoa hồng & thực nhận theo sổ thu nhập thực (giống quy ước giải ngân Admin):
+  //  - RECEIVED → dùng host_incomes.income đã giải ngân
+  //  - PENDING / chưa có → ước tính theo COMMISSION_RATE (10%)
+  const income = row.income;
+  const settled = income?.income_status === 'RECEIVED';
+  let commission;
+  let netPayout;
+  if (settled) {
+    netPayout = Number(income.income) || 0;
+    commission = subtotal - netPayout;
+  } else {
+    const rate = income?.commission_rate != null ? Number(income.commission_rate) / 100 : COMMISSION_RATE;
+    commission = Math.round(subtotal * rate);
+    netPayout = subtotal - commission;
+  }
+  const commissionPercent = subtotal > 0 ? Math.round((commission / subtotal) * 100) : Math.round(COMMISSION_RATE * 100);
+
+  // Trạng thái giải ngân (chỉ có nghĩa với giao dịch đã thanh toán thành công).
+  let settlementStatus = 'none';
+  if (row.payment?.status === 'SUCCESS') settlementStatus = settled ? 'disbursed' : 'pending';
+  const settlementLabel =
+    settlementStatus === 'disbursed' ? 'Đã giải ngân' : settlementStatus === 'pending' ? 'Chờ giải ngân' : '—';
+
   const completedAt = row.host_accepted_at || row.confirmed_at || null;
 
   return {
@@ -168,7 +208,7 @@ async function getTransactionDetail(landlordId, depositId) {
     bookingCode: bookingCode(row.deposit_id),
     status,
     statusLabel: STATUS_LABEL[status],
-    totalPayment: deposit,
+    totalPayment: gross,
     paymentMethod: row.payment?.payment_method
       ? PAYMENT_METHOD_LABEL[row.payment.payment_method] || row.payment.payment_method
       : 'Chưa thanh toán',
@@ -176,14 +216,17 @@ async function getTransactionDetail(landlordId, depositId) {
     lines: [
       {
         description: `Đặt cọc giữ phòng — ${row.room_title}`,
-        unitPrice: deposit,
+        unitPrice: gross,
         quantity: 1,
-        amount: deposit,
+        amount: gross,
       },
     ],
     subtotal,
     commission: -commission,
+    commissionPercent,
     netPayout,
+    settlementStatus,
+    settlementLabel,
     customer: {
       userId: row.tenant_id,
       name: row.tenant_name,
@@ -237,7 +280,7 @@ async function exportTransactions(landlordId, query = {}) {
       gross,
       commission,
       gross - commission,
-      STATUS_LABEL[uiStatus(row.status)] || '',
+      STATUS_LABEL[deriveStatus(row)] || '',
       formatDateTime(row.created_at),
       row.host_accepted_at ? formatDateTime(row.host_accepted_at) : '',
     ];

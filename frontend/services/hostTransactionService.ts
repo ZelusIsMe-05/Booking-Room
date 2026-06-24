@@ -60,7 +60,11 @@ export interface HostTransactionDetail {
   lines: HostTransactionLine[];
   subtotal: number;
   commission: number;
+  commissionPercent: number;
   netPayout: number;
+  /** 'disbursed' = đã giải ngân, 'pending' = chờ giải ngân, 'none' = chưa thanh toán. */
+  settlementStatus: 'disbursed' | 'pending' | 'none';
+  settlementLabel: string;
   customer: {
     userId: string;
     name: string;

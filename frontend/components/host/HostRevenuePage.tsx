@@ -208,65 +208,6 @@ function RevenueLineChart({ trend }: { trend: RevenueTrendPoint[] }) {
   );
 }
 
-// Donut chart — share of deposits by outcome (completed / processing / failed).
-function StatusPieChart({ breakdown }: { breakdown: RevenueSummary['statusBreakdown'] }) {
-  const slices = [
-    { key: 'completed', label: 'Thành công', value: breakdown.completed, color: '#006A61' },
-    { key: 'processing', label: 'Đang xử lý', value: breakdown.processing, color: '#943700' },
-    { key: 'failed', label: 'Thất bại', value: breakdown.failed, color: '#BA1A1A' },
-  ];
-  const total = slices.reduce((sum, s) => sum + s.value, 0);
-
-  // Build the conic-gradient stops only when there is data.
-  let acc = 0;
-  const stops = slices
-    .map((s) => {
-      const start = total > 0 ? (acc / total) * 100 : 0;
-      acc += s.value;
-      const end = total > 0 ? (acc / total) * 100 : 0;
-      return `${s.color} ${start}% ${end}%`;
-    })
-    .join(', ');
-
-  return (
-    <section className="rounded-xl border border-[#C3C6D7] bg-white p-6 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-xl font-semibold leading-7 text-[#191B23]">Tỷ lệ giao dịch</h2>
-        <p className="text-sm leading-[21px] text-[#737686]">Theo kỳ thống kê đã chọn</p>
-      </div>
-
-      <div className="mt-6 flex flex-col items-center gap-6">
-        <div
-          className="relative h-44 w-44 shrink-0 rounded-full"
-          style={{ background: total > 0 ? `conic-gradient(${stops})` : '#E2E8F0' }}
-        >
-          <div className="absolute inset-[22%] flex flex-col items-center justify-center rounded-full bg-white shadow-inner">
-            <span className="text-2xl font-bold leading-7 text-[#191B23]">{total}</span>
-            <span className="text-xs text-[#737686]">giao dịch</span>
-          </div>
-        </div>
-
-        <ul className="w-full space-y-2">
-          {slices.map((s) => {
-            const pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
-            return (
-              <li key={s.key} className="flex items-center justify-between text-sm leading-5">
-                <span className="inline-flex items-center gap-2 text-[#434655]">
-                  <span className="h-3 w-3 rounded-full" style={{ background: s.color }} />
-                  {s.label}
-                </span>
-                <span className="font-semibold text-[#191B23]">
-                  {s.value} <span className="text-[#737686]">({pct}%)</span>
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </section>
-  );
-}
-
 function SettlementStatusBadge({ status }: { status: RevenueSettlement['status'] }) {
   const label = status === 'completed' ? 'Đã hoàn tất' : 'Đang đối soát';
   const className =
@@ -652,9 +593,9 @@ export default function HostRevenuePage() {
 
           <section aria-label={`Chỉ số doanh thu ${activeRangeLabel}`} className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
             <KpiCard
-              label="Tổng doanh thu (đã hoàn tất)"
+              label="Tổng doanh thu"
               value={<MoneyValue amount={summary.totalRevenue} />}
-              description="Tổng thực nhận từ mọi giao dịch hoàn tất"
+              description="Tổng giao dịch đã được admin phân phối"
               iconBg="rgba(0,106,97,0.1)"
               tone="neutral"
               icon={
@@ -707,10 +648,7 @@ export default function HostRevenuePage() {
 
           <RevenueTrendChart trend={trend} />
 
-          <section className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
-            <RevenueLineChart trend={trend} />
-            <StatusPieChart breakdown={summary.statusBreakdown} />
-          </section>
+          <RevenueLineChart trend={trend} />
 
           <SettlementTable
             items={settlements}

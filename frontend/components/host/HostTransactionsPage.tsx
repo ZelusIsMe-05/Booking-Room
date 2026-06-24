@@ -13,7 +13,6 @@ import {
 import {
   hostTransactionService,
   type HostTransactionItem,
-  type HostTransactionSummary,
 } from '@/services/hostTransactionService';
 
 const ITEMS_PER_PAGE = 8;
@@ -27,36 +26,6 @@ function dateFromForRange(label: string): string | undefined {
   if (label.startsWith('6 tháng')) return new Date(now.getFullYear(), now.getMonth() - 6, 1).toISOString();
   if (label.startsWith('Năm nay')) return new Date(now.getFullYear(), 0, 1).toISOString();
   return undefined;
-}
-
-// ─── Summary Card ─────────────────────────────────────────────────────────────
-
-interface SummaryCardProps {
-  label: string;
-  value: string;
-  sub: React.ReactNode;
-  icon: React.ReactNode;
-  iconBg: string;
-}
-
-function SummaryCard({ label, value, sub, icon, iconBg }: SummaryCardProps) {
-  return (
-    <div className="flex flex-1 items-center justify-between rounded-xl border border-[#C3C6D7] bg-white p-6 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-      <div className="flex flex-col gap-1">
-        <span className="text-xs font-bold tracking-[0.6px] text-[#434655] uppercase">
-          {label}
-        </span>
-        <span className="text-2xl font-semibold leading-8 text-[#191B23]">{value}</span>
-        <div className="flex items-center gap-1 text-base leading-6">{sub}</div>
-      </div>
-      <div
-        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full"
-        style={{ background: iconBg }}
-      >
-        {icon}
-      </div>
-    </div>
-  );
 }
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
@@ -88,7 +57,6 @@ export default function HostTransactionsPage() {
   const [items, setItems] = useState<HostTransactionItem[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [summary, setSummary] = useState<HostTransactionSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [exporting, setExporting] = useState(false);
@@ -120,20 +88,6 @@ export default function HostTransactionsPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [search, statusFilter, selectedMonth]);
-
-  // Fetch the summary once.
-  useEffect(() => {
-    let cancelled = false;
-    hostTransactionService
-      .getSummary()
-      .then((res) => {
-        if (!cancelled && res.data) setSummary(res.data);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Fetch the list (server-side filtered + paginated); debounce the search box.
   useEffect(() => {
@@ -265,63 +219,6 @@ export default function HostTransactionsPage() {
                 {exporting ? 'Đang xuất...' : 'Xuất báo cáo'}
               </button>
             </div>
-          </div>
-
-          {/* ── Summary Cards ─────────────────────────────────────────── */}
-          <div className="flex gap-6">
-            <SummaryCard
-              label="Tổng giao dịch"
-              value={formatVND(summary?.totalRevenue ?? 0)}
-              sub={
-                <>
-                  <svg className="h-3 w-3 text-[#006A61]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                  </svg>
-                  <span className="text-[#006A61]">
-                    {(summary?.totalRevenueChange ?? 0) >= 0 ? '+' : ''}{summary?.totalRevenueChange ?? 0}% so với tháng trước
-                  </span>
-                </>
-              }
-              iconBg="rgba(0,74,198,0.1)"
-              icon={
-                <svg className="h-6 w-6 text-[#004AC6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <rect x="2" y="5" width="20" height="14" rx="2" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2 10h20" />
-                </svg>
-              }
-            />
-            <SummaryCard
-              label="Đang xử lý"
-              value={formatVND(summary?.processingAmount ?? 0)}
-              sub={
-                <span className="text-[#434655]">
-                  {String(summary?.processingCount ?? 0).padStart(2, '0')} giao dịch chờ duyệt
-                </span>
-              }
-              iconBg="rgba(148,55,0,0.1)"
-              icon={
-                <svg className="h-6 w-6 text-[#943700]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-                  <rect x="9" y="3" width="6" height="4" rx="1" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6M9 16h4" />
-                </svg>
-              }
-            />
-            <SummaryCard
-              label="Giao dịch thành công"
-              value={formatVND(summary?.completedAmount ?? 0)}
-              sub={
-                <span className="text-[#006A61]">
-                  {summary?.completionRate ?? 0}% tỷ lệ hoàn tất
-                </span>
-              }
-              iconBg="rgba(0,106,97,0.1)"
-              icon={
-                <svg className="h-6 w-6 text-[#006A61]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
-                </svg>
-              }
-            />
           </div>
 
           {/* ── Filter Bar ────────────────────────────────────────────── */}

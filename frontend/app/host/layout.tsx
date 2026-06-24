@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import RoleGate from '@/components/common/RoleGate';
 import HostApprovalGate from '@/components/host/HostApprovalGate';
 
 export const metadata: Metadata = {
@@ -7,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function HostLayout({ children }: { children: React.ReactNode }) {
-  return <HostApprovalGate>{children}</HostApprovalGate>;
+  return (
+    <RoleGate allowedRoles={['LANDLORD']}>
+      <HostApprovalGate>{children}</HostApprovalGate>
+    </RoleGate>
+  );
 }

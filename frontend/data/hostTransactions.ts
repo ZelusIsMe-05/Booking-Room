@@ -6,7 +6,7 @@
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type TransactionStatus = 'completed' | 'cancelled' | 'pending' | 'processing';
+export type TransactionStatus = 'completed' | 'awaiting' | 'cancelled' | 'pending' | 'processing';
 
 export interface Transaction {
   id: string;
@@ -138,11 +138,15 @@ export const statusConfig: Record<TransactionStatus, StatusConfig> = {
     bgClass: 'bg-[rgba(134,242,228,0.2)]',
     textClass: 'text-[#006A61]',
   },
+  awaiting: {
+    label: 'Đang phê duyệt',
+    bgClass: 'bg-[rgba(148,55,0,0.1)]',
+    textClass: 'text-[#943700]',
+  },
   cancelled: {
-    label: 'ĐÃ HỦY',
+    label: 'Đã từ chối',
     bgClass: 'bg-[rgba(186,26,26,0.1)]',
     textClass: 'text-[#BA1A1A]',
-    uppercase: true,
   },
   pending: {
     label: 'CHỜ DUYỆT',
@@ -162,9 +166,9 @@ export const statusConfig: Record<TransactionStatus, StatusConfig> = {
 export const statusFilterOptions: Array<{ value: TransactionStatus | 'all'; label: string }> = [
   { value: 'all', label: 'Tất cả' },
   { value: 'completed', label: 'Đã hoàn tất' },
-  { value: 'pending', label: 'Chờ duyệt' },
-  { value: 'cancelled', label: 'Đã hủy' },
+  { value: 'awaiting', label: 'Đang phê duyệt' },
   { value: 'processing', label: 'Đang xử lý' },
+  { value: 'cancelled', label: 'Đã từ chối' },
 ];
 
 export const ITEMS_PER_PAGE = 4;

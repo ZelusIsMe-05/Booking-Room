@@ -7,18 +7,37 @@ const db = require('../../config/db');
  * payment transaction. Only this layer knows table/column names.
  */
 
-// UI status → underlying deposit statuses (for filtering).
-const UI_STATUS_TO_DEPOSIT = {
-  completed: ['ACCEPTED'],
-  pending: ['CONFIRMED'],
-  processing: ['PROCESSING'],
-  cancelled: ['CANCELLED', 'REJECTED', 'EXPIRED'],
-};
+/**
+ * Áp bộ lọc theo UI status. Trạng thái phản ánh CẢ vòng đời đơn cọc lẫn việc admin
+ * đã giải ngân hay chưa (t.is_disbursed):
+ *  - completed  : chủ trọ đã duyệt (ACCEPTED) VÀ admin đã giải ngân
+ *  - awaiting   : chủ trọ đã duyệt (ACCEPTED) nhưng admin CHƯA giải ngân → "Đang phê duyệt"
+ *  - processing : đang chờ thanh toán / chờ chủ trọ duyệt (PROCESSING, CONFIRMED)
+ *  - cancelled  : bị từ chối / hủy (REJECTED, CANCELLED, EXPIRED)
+ */
+function applyStatusFilter(q, status) {
+  if (!status) return;
+  if (status === 'completed') {
+    q.where('d.status', 'ACCEPTED').andWhere('t.is_disbursed', true);
+  } else if (status === 'awaiting') {
+    q.where('d.status', 'ACCEPTED').andWhere((b) => {
+      b.where('t.is_disbursed', false).orWhereNull('t.is_disbursed');
+    });
+  } else if (status === 'processing') {
+    q.whereIn('d.status', ['PROCESSING', 'CONFIRMED']);
+  } else if (status === 'cancelled') {
+    q.whereIn('d.status', ['CANCELLED', 'REJECTED', 'EXPIRED']);
+  }
+}
 
 function baseListQuery(landlordId) {
   return db('deposits as d')
     .join('rooms as r', 'd.room_id', 'r.room_id')
     .join('users as u', 'd.tenant_id', 'u.user_id')
+    // Giao dịch thanh toán thành công (nếu có) để biết đã giải ngân hay chưa.
+    .leftJoin('transactions as t', function () {
+      this.on('t.deposit_id', 'd.deposit_id').andOnVal('t.status', '=', 'SUCCESS');
+    })
     .where('d.landlord_id', landlordId);
 }
 
@@ -39,7 +58,7 @@ async function listByLandlord(landlordId, { status, roomId, search, dateFrom, pa
 
   const filtered = () => {
     const q = baseListQuery(landlordId);
-    if (status && UI_STATUS_TO_DEPOSIT[status]) q.whereIn('d.status', UI_STATUS_TO_DEPOSIT[status]);
+    applyStatusFilter(q, status);
     if (roomId) q.where('d.room_id', roomId);
     if (dateFrom) q.where('d.created_at', '>=', dateFrom);
     if (search) {
@@ -53,7 +72,7 @@ async function listByLandlord(landlordId, { status, roomId, search, dateFrom, pa
     return q;
   };
 
-  const [{ count }] = await filtered().clone().count('d.deposit_id as count');
+  const [{ count }] = await filtered().clone().countDistinct('d.deposit_id as count');
 
   const items = await filtered()
     .orderBy('d.created_at', 'desc')
@@ -67,6 +86,7 @@ async function listByLandlord(landlordId, { status, roomId, search, dateFrom, pa
       'd.created_at',
       'd.confirmed_at',
       'd.host_accepted_at',
+      't.is_disbursed',
       'r.room_id',
       'r.title as room_title',
       'r.detailed_address as room_address',
@@ -82,7 +102,7 @@ async function listByLandlord(landlordId, { status, roomId, search, dateFrom, pa
  */
 async function listAllByLandlord(landlordId, { status, roomId, search, dateFrom } = {}) {
   const q = baseListQuery(landlordId);
-  if (status && UI_STATUS_TO_DEPOSIT[status]) q.whereIn('d.status', UI_STATUS_TO_DEPOSIT[status]);
+  applyStatusFilter(q, status);
   if (roomId) q.where('d.room_id', roomId);
   if (dateFrom) q.where('d.created_at', '>=', dateFrom);
   if (search) {
@@ -104,6 +124,7 @@ async function listAllByLandlord(landlordId, { status, roomId, search, dateFrom 
       'd.created_at',
       'd.confirmed_at',
       'd.host_accepted_at',
+      't.is_disbursed',
       'r.room_id',
       'r.title as room_title',
       'r.detailed_address as room_address',
@@ -179,15 +200,31 @@ async function detailByLandlord(landlordId, depositId) {
     .where({ deposit_id: depositId })
     .orderByRaw(`CASE WHEN status = 'SUCCESS' THEN 0 ELSE 1 END`)
     .orderBy('created_at', 'desc')
-    .select('amount', 'payment_method', 'status', 'created_at')
+    .select('transaction_id', 'amount', 'payment_method', 'status', 'created_at', 'is_disbursed', 'disbursed_at')
     .first();
+
+  // Host income ledger for the successful transaction (shared convention with
+  // Admin disbursement): actual net + applied commission_rate when disbursed.
+  let income = null;
+  if (payment && payment.status === 'SUCCESS') {
+    income = await db('host_incomes as hi')
+      .leftJoin('disbursement_logs as dl', 'dl.transaction_id', 'hi.transaction_id')
+      .where('hi.transaction_id', payment.transaction_id)
+      .select('hi.income', 'hi.status as income_status', 'dl.commission_rate')
+      .first();
+  }
 
   // How many completed bookings this tenant has overall.
   const [{ count }] = await db('deposits')
     .where({ tenant_id: row.tenant_id, status: 'ACCEPTED' })
     .count('deposit_id as count');
 
-  return { ...row, payment: payment || null, tenant_completed_bookings: Number(count) };
+  return {
+    ...row,
+    payment: payment || null,
+    income: income || null,
+    tenant_completed_bookings: Number(count),
+  };
 }
 
 module.exports = {

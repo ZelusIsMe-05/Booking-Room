@@ -47,12 +47,13 @@ export default function LoginPage() {
             localStorage.removeItem('oauth_provider');
             localStorage.removeItem('oauth_role');
             const redirectParam = params.get('redirect');
+            success = true;
             if (data?.user?.role === 'LANDLORD') {
-              router.push('/host');
+              router.replace('/host');
             } else if (redirectParam) {
-              router.push(redirectParam);
+              router.replace(redirectParam);
             } else {
-              router.push('/');
+              router.replace('/');
             }
           } catch (err: any) {
             setServerError(err.message || 'Đăng nhập qua mạng xã hội thất bại. Vui lòng thử lại.');

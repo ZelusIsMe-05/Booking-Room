@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Metadata } from 'next';
+import RoleGate from '@/components/common/RoleGate';
 
 export const metadata: Metadata = {
   title: 'Kênh khách thuê',
@@ -12,17 +13,19 @@ export default function TenantLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-[#F4F5F7]/30">
-      {/* 
-        Sau này bạn có thể đặt Sidebar cố định hoặc Header riêng của Tenant ở đây.
-        Ví dụ:
-        <TenantNavbar />
-        <div className="flex">
-          <TenantSidebar />
-          <main className="flex-1">{children}</main>
-        </div>
-      */}
-      {children}
-    </div>
+    <RoleGate allowedRoles={['TENANT']}>
+      <div className="min-h-screen bg-[#F4F5F7]/30">
+        {/*
+          Sau này bạn có thể đặt Sidebar cố định hoặc Header riêng của Tenant ở đây.
+          Ví dụ:
+          <TenantNavbar />
+          <div className="flex">
+            <TenantSidebar />
+            <main className="flex-1">{children}</main>
+          </div>
+        */}
+        {children}
+      </div>
+    </RoleGate>
   );
 }
