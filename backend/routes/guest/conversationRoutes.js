@@ -23,4 +23,7 @@ router.post('/:id/messages', requireAuth, conversationController.sendMessage);
 // PATCH /api/conversations/:id/read — Mark messages as read
 router.patch('/:id/read', requireAuth, conversationController.markAsRead);
 
+// DELETE /api/conversations/:id — Clear conversation for caller
+router.delete('/:id', requireAuth, conversationController.clearConversation);
+
 module.exports = router;

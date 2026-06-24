@@ -57,10 +57,10 @@ exports.listConversations = async (req, res, next) => {
 exports.getMessages = async (req, res, next) => {
   try {
     const conversationId = req.params.id;
-    const { userId } = req.user;
+    const { userId, role } = req.user;
     const { page, limit } = req.query;
 
-    const result = await conversationService.getMessages(conversationId, userId, { page, limit });
+    const result = await conversationService.getMessages(conversationId, userId, role, { page, limit });
 
     return sendSuccess(res, {
       message: 'Lấy tin nhắn thành công.',
@@ -124,6 +124,25 @@ exports.markAsRead = async (req, res, next) => {
 
     return sendSuccess(res, {
       message: 'Đã đánh dấu đọc tin nhắn.'
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * DELETE /api/conversations/:id
+ * Clear conversation history for the caller (soft clear/delete).
+ */
+exports.clearConversation = async (req, res, next) => {
+  try {
+    const conversationId = req.params.id;
+    const { userId, role } = req.user;
+
+    await conversationService.clearConversation(conversationId, userId, role);
+
+    return sendSuccess(res, {
+      message: 'Xóa cuộc hội thoại thành công.'
     });
   } catch (err) {
     next(err);

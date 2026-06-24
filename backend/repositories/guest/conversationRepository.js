@@ -49,6 +49,7 @@ async function findConversationsByUser(role, specificId) {
   const peerKey = isTenant ? 'conversations.landlord_id' : 'conversations.tenant_id';
   const peerTable = isTenant ? 'landlords' : 'tenants';
   const peerIdField = isTenant ? 'landlords.landlord_id' : 'tenants.tenant_id';
+  const clearedColumn = isTenant ? 'conversations.tenant_cleared_at' : 'conversations.landlord_cleared_at';
 
   // We need to fetch the conversations, join with the peer's user profile,
   // and get the last message snippet + unread count.
@@ -59,6 +60,8 @@ async function findConversationsByUser(role, specificId) {
     .select(
       'conversations.conversation_id',
       'conversations.created_at',
+      'conversations.landlord_cleared_at',
+      'conversations.tenant_cleared_at',
       'users.user_id as peer_user_id',
       'users.full_name as peer_name',
       'users.avatar_url as peer_avatar',
@@ -67,6 +70,7 @@ async function findConversationsByUser(role, specificId) {
         SELECT content 
         FROM messages 
         WHERE messages.conversation_id = conversations.conversation_id 
+          AND (${clearedColumn} IS NULL OR messages.sent_at > ${clearedColumn})
         ORDER BY sent_at DESC LIMIT 1
       ) as last_message`),
       // Subquery for latest message sent_at
@@ -74,6 +78,7 @@ async function findConversationsByUser(role, specificId) {
         SELECT sent_at 
         FROM messages 
         WHERE messages.conversation_id = conversations.conversation_id 
+          AND (${clearedColumn} IS NULL OR messages.sent_at > ${clearedColumn})
         ORDER BY sent_at DESC LIMIT 1
       ) as last_message_at`),
       // Subquery for unread count (messages sent BY peer, status != 'READ')
@@ -83,24 +88,35 @@ async function findConversationsByUser(role, specificId) {
         WHERE messages.conversation_id = conversations.conversation_id 
           AND messages.sender_id = users.user_id 
           AND messages.status != 'READ'
+          AND (${clearedColumn} IS NULL OR messages.sent_at > ${clearedColumn})
       ) as unread_count`)
-    )
-    .orderByRaw('last_message_at DESC NULLS LAST');
+    );
 
-  return query;
+  // Filter out conversations where clearedColumn is not null and there are no messages after it
+  query.andWhere(function() {
+    this.whereNull(clearedColumn).orWhere(
+      clearedColumn,
+      '<',
+      db.raw(`(
+        SELECT sent_at 
+        FROM messages 
+        WHERE messages.conversation_id = conversations.conversation_id 
+        ORDER BY sent_at DESC LIMIT 1
+      )`)
+    );
+  });
+
+  return query.orderByRaw('last_message_at DESC NULLS LAST');
 }
 
 /**
  * Retrieve paginated messages for a conversation.
  */
-async function findMessages(conversationId, { page = 1, limit = 20 }) {
+async function findMessages(conversationId, { page = 1, limit = 20, clearedAt = null }) {
   const offset = (page - 1) * limit;
 
-  const [{ count }] = await db('messages')
-    .where({ conversation_id: conversationId })
-    .count('message_id as count');
-
-  const items = await db('messages')
+  let countQuery = db('messages').where({ conversation_id: conversationId });
+  let itemsQuery = db('messages')
     .where({ conversation_id: conversationId })
     // Newest first for fetching
     .orderBy('sent_at', 'desc')
@@ -114,6 +130,14 @@ async function findMessages(conversationId, { page = 1, limit = 20 }) {
       'status',
       'read_at'
     );
+
+  if (clearedAt) {
+    countQuery = countQuery.andWhere('sent_at', '>', clearedAt);
+    itemsQuery = itemsQuery.andWhere('sent_at', '>', clearedAt);
+  }
+
+  const [{ count }] = await countQuery.count('message_id as count');
+  const items = await itemsQuery;
 
   return { items, total: Number(count) };
 }
@@ -163,6 +187,22 @@ async function markDeliveredForConversations(conversationIds, recipientUserId) {
     .update({ status: 'DELIVERED' });
 }
 
+/**
+ * Clear a conversation for a specific role by setting cleared_at to current timestamp.
+ *
+ * @param {string} conversationId
+ * @param {string} role - 'TENANT' or 'LANDLORD'
+ * @param {Date} clearedAt
+ */
+async function clearConversation(conversationId, role, clearedAt = new Date()) {
+  const isTenant = role === 'TENANT';
+  const updateField = isTenant ? 'tenant_cleared_at' : 'landlord_cleared_at';
+  
+  await db('conversations')
+    .where({ conversation_id: conversationId })
+    .update({ [updateField]: clearedAt });
+}
+
 module.exports = {
   findConversationByParticipants,
   createConversation,
@@ -171,5 +211,6 @@ module.exports = {
   findMessages,
   insertMessage,
   markMessagesAsRead,
-  markDeliveredForConversations
+  markDeliveredForConversations,
+  clearConversation
 };
