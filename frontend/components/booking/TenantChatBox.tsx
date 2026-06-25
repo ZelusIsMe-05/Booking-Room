@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { conversationService, ConversationMessage } from '@/services/conversationService';
 import { useAuth } from '@/context/AuthContext';
 import { useSocket } from '@/context/SocketContext';
+import { useTranslation } from '@/context/LanguageContext';
 
 interface TenantChatBoxProps {
   conversationId: string;
@@ -30,6 +31,7 @@ export default function TenantChatBox({
 }: TenantChatBoxProps) {
   const { user } = useAuth();
   const { socket } = useSocket();
+  const { t } = useTranslation();
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -58,7 +60,7 @@ export default function TenantChatBox({
       window.dispatchEvent(
         new CustomEvent('show-toast', {
           detail: {
-            message: 'Đã xóa lịch sử cuộc trò chuyện thành công.',
+            message: t('roomDetail.chatDeleteToast'),
             type: 'success',
           },
         })
@@ -70,7 +72,7 @@ export default function TenantChatBox({
       window.dispatchEvent(
         new CustomEvent('show-toast', {
           detail: {
-            message: err?.message || 'Không thể xóa cuộc trò chuyện.',
+            message: err?.message || t('roomDetail.chatDeleteErrToast'),
             type: 'error',
           },
         })
@@ -171,7 +173,7 @@ export default function TenantChatBox({
       }
     } catch (err: any) {
       console.error('Failed to send message:', err);
-      alert(err.message || 'Gửi tin nhắn thất bại.');
+      alert(err.message || t('roomDetail.chatSendFailed'));
       setInputText(text); // restore input
     } finally {
       setSending(false);
@@ -229,7 +231,7 @@ export default function TenantChatBox({
           type="button"
           onClick={onDestroy}
           className="absolute -top-1.5 -left-1.5 hidden group-hover:flex w-5 h-5 rounded-full bg-slate-200 hover:bg-red-500 hover:text-white items-center justify-center text-[10px] font-bold text-slate-600 transition shadow"
-          title="Đóng hoàn toàn"
+          title={t('roomDetail.chatDismiss')}
         >
           ✕
         </button>
@@ -273,7 +275,7 @@ export default function TenantChatBox({
           <button
             onClick={handleClearChat}
             className="w-6 h-6 hover:bg-white/10 rounded flex items-center justify-center transition-colors text-white/90"
-            title="Xóa lịch sử cuộc trò chuyện"
+            title={t('roomDetail.chatDeleteTitle')}
           >
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -282,14 +284,14 @@ export default function TenantChatBox({
           <button
             onClick={onToggleMinimize}
             className="w-6 h-6 hover:bg-white/10 rounded flex items-center justify-center transition-colors text-white/90"
-            title={isMinimized ? 'Mở rộng' : 'Thu nhỏ'}
+            title={isMinimized ? t('roomDetail.chatExpand') : t('roomDetail.chatMinimize')}
           >
             {isMinimized ? '▲' : '▼'}
           </button>
           <button
             onClick={onClose}
             className="w-6 h-6 hover:bg-white/10 rounded flex items-center justify-center transition-colors text-white/90 font-bold"
-            title="Đóng chat"
+            title={t('roomDetail.chatClose')}
           >
             ✕
           </button>
@@ -306,9 +308,9 @@ export default function TenantChatBox({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
               </div>
-              <h4 className="text-sm font-bold text-slate-800">Xóa lịch sử chat?</h4>
+              <h4 className="text-sm font-bold text-slate-800">{t('roomDetail.chatDeleteHistory')}</h4>
               <p className="text-xs text-slate-500 mt-1 mb-4 leading-relaxed">
-                Lịch sử trò chuyện sẽ bị ẩn đi khỏi hộp thư của bạn. Việc này không ảnh hưởng đến lịch sử của Chủ trọ.
+                {t('roomDetail.chatDeleteConfirmText')}
               </p>
               <div className="flex gap-2 w-full">
                 <button
@@ -317,7 +319,7 @@ export default function TenantChatBox({
                   disabled={clearing}
                   className="flex-1 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition disabled:opacity-50"
                 >
-                  Hủy
+                  {t('roomDetail.chatCancel')}
                 </button>
                 <button
                   type="button"
@@ -325,7 +327,7 @@ export default function TenantChatBox({
                   disabled={clearing}
                   className="flex-1 py-2 text-xs font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
-                  {clearing ? 'Đang xóa...' : 'Xác nhận'}
+                  {clearing ? t('roomDetail.chatDeleting') : t('roomDetail.chatConfirmDelete')}
                 </button>
               </div>
             </div>
@@ -334,10 +336,10 @@ export default function TenantChatBox({
           {/* Message List */}
           <div className="flex-1 overflow-y-auto p-3 bg-slate-50 space-y-3 flex flex-col">
             {loading ? (
-              <div className="text-center text-xs text-slate-400 my-auto">Đang tải tin nhắn...</div>
+              <div className="text-center text-xs text-slate-400 my-auto">{t('roomDetail.chatLoading')}</div>
             ) : messages.length === 0 ? (
               <div className="text-center text-xs text-slate-400 my-auto">
-                Hãy bắt đầu câu hỏi của bạn với chủ trọ.
+                {t('roomDetail.chatEmpty')}
               </div>
             ) : (
               messages.map((msg) => {
@@ -379,7 +381,7 @@ export default function TenantChatBox({
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={sending}
-              placeholder="Nhập tin nhắn..."
+              placeholder={t('roomDetail.chatInputPlaceholder')}
               rows={1}
               className="flex-1 bg-slate-100 focus:bg-white border border-transparent focus:border-slate-200 text-sm px-3 py-2 rounded-xl focus:outline-none transition resize-none max-h-[80px] overflow-y-auto leading-relaxed"
             />

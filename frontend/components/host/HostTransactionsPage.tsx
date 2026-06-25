@@ -232,6 +232,7 @@ export default function HostTransactionsPage() {
           </div>
 
           {/* ── Summary Cards ─────────────────────────────────────────── */}
+          {/*
           <div className="flex gap-6">
             <SummaryCard
               label={t('host.transactions.totalTx')}
@@ -287,6 +288,7 @@ export default function HostTransactionsPage() {
               }
             />
           </div>
+          */}
 
           {/* ── Filter Bar ────────────────────────────────────────────── */}
           <div className="flex items-center gap-4 rounded-xl border border-[#C3C6D7] bg-white px-4 py-[18px] shadow-[0_1px_2px_rgba(0,0,0,0.05)]">

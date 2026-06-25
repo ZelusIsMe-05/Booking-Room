@@ -18,6 +18,7 @@ import {
   MapIcon,
   HeartIcon,
 } from '@/components/booking/Icons';
+import { useTranslation } from '@/context/LanguageContext';
 
 interface RoomDetailViewProps {
   room: any;
@@ -56,6 +57,7 @@ const getAvatarBgColor = (name: string) => {
 };
 
 export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: RoomDetailViewProps) {
+  const { t } = useTranslation();
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [zoomScale, setZoomScale] = useState(1);
@@ -195,11 +197,11 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
   }, [isLightboxOpen, allImages.length]);
 
   // Format landlord joined date dynamically from database
-  let hostJoinedDate = 'Đã tham gia từ tháng 5, 2021';
+  let hostJoinedDate = `${t('roomDetail.joinedPrefix')}5, 2021`;
   if (room.host?.createdAt) {
     try {
       const d = new Date(room.host.createdAt);
-      hostJoinedDate = `Đã tham gia từ tháng ${d.getMonth() + 1}, ${d.getFullYear()}`;
+      hostJoinedDate = `${t('roomDetail.joinedPrefix')}${d.getMonth() + 1}, ${d.getFullYear()}`;
     } catch (e) {}
   }
 
@@ -242,7 +244,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
           <div className="relative h-full w-full overflow-hidden" onClick={() => openLightbox(0)}>
             <Image
               src={allImages[0]}
-              alt={`${room.title} - Ảnh 1`}
+              alt={`${room.title} - ${t('roomDetail.imagePrefix')}1`}
               fill
               priority
               sizes="100vw"
@@ -257,7 +259,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
               <div key={index} className="relative h-full w-full overflow-hidden" onClick={() => openLightbox(index)}>
                 <Image
                   src={imgUrl}
-                  alt={`${room.title} - Ảnh ${index + 1}`}
+                  alt={`${room.title} - ${t('roomDetail.imagePrefix')}${index + 1}`}
                   fill
                   priority={index === 0}
                   sizes="50vw"
@@ -274,7 +276,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
             <div className="relative md:col-span-2 h-full w-full overflow-hidden" onClick={() => openLightbox(0)}>
               <Image
                 src={allImages[0]}
-                alt={`${room.title} - Ảnh 1`}
+                alt={`${room.title} - ${t('roomDetail.imagePrefix')}1`}
                 fill
                 priority
                 sizes="(min-width: 768px) 66vw, 100vw"
@@ -292,7 +294,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
               <div className="relative h-full w-full overflow-hidden" onClick={() => openLightbox(1)}>
                 <Image
                   src={allImages[1]}
-                  alt={`${room.title} - Ảnh 2`}
+                  alt={`${room.title} - ${t('roomDetail.imagePrefix')}2`}
                   fill
                   sizes="(min-width: 768px) 33vw, 50vw"
                   className="object-cover transition duration-300 hover:scale-[1.02]"
@@ -301,7 +303,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
               <div className="relative h-full w-full overflow-hidden" onClick={() => openLightbox(2)}>
                 <Image
                   src={allImages[2]}
-                  alt={`${room.title} - Ảnh 3`}
+                  alt={`${room.title} - ${t('roomDetail.imagePrefix')}3`}
                   fill
                   sizes="(min-width: 768px) 33vw, 50vw"
                   className="object-cover transition duration-300 hover:scale-[1.02]"
@@ -309,7 +311,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
                 {allImages.length > 3 && (
                   <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white transition duration-300 hover:bg-black/50 select-none">
                     <span className="text-2xl font-extrabold">+{allImages.length - 2}</span>
-                    <span className="text-xs font-semibold mt-1">hình ảnh</span>
+                    <span className="text-xs font-semibold mt-1">{t('roomDetail.imagesText')}</span>
                   </div>
                 )}
               </div>
@@ -326,7 +328,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
           className="absolute bottom-4 right-4 bg-white/95 hover:bg-white text-booking-text font-bold text-xs py-2 px-3 rounded-lg flex items-center gap-1.5 transition shadow-md border border-slate-200 active:scale-95 z-10"
         >
           <GridIcon className="h-4 w-4 text-booking-text" />
-          Hiển thị tất cả ({allImages.length})
+          {t('roomDetail.showAllImages').replace('{{count}}', String(allImages.length))}
         </button>
       </section>
 
@@ -342,11 +344,11 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
                 {room.verified && (
                   <span className="inline-flex items-center gap-1 rounded bg-[#E6F4EA] text-[#137333] px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.02em]">
                     <ShieldCheckIcon className="h-3 w-3" />
-                    Đối tác uy tín
+                    {t('roomDetail.verifiedPartner')}
                   </span>
                 )}
                 <span className="inline-flex items-center gap-1 rounded bg-[#F3E8FF] text-[#6B21A8] px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.02em]">
-                  Phòng trọ cao cấp
+                  {t('roomDetail.premiumRoom')}
                 </span>
               </div>
 
@@ -363,14 +365,14 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
                 ) : (
                   <span className="flex items-center gap-1 text-booking-muted font-semibold">
                     <StarIcon className="h-4 w-4 text-slate-300 fill-current" />
-                    Chưa có đánh giá
+                    {t('roomDetail.noRatingYet')}
                   </span>
                 )}
                 {room.favoriteCount != null && (
                   <>
                     <span className="text-slate-300">•</span>
                     <span className="flex items-center gap-1 font-bold text-booking-text" title="Lượt yêu thích">
-                      <HeartIcon className="h-4 w-4 text-rose-500" filled />
+                      <HeartIcon className="h-4 w-4 text-rose-50-500" filled />
                       {room.favoriteCount}
                     </span>
                   </>
@@ -391,8 +393,9 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
                 {room.host?.avatarUrl ? (
                   <Image
                     src={room.host.avatarUrl}
-                    alt={`Avatar chủ nhà ${room.host?.fullName || 'Nguyễn Văn A'}`}
+                    alt={`${t('roomDetail.hostTitle')} ${room.host?.fullName || 'Nguyễn Văn A'}`}
                     fill
+                    sizes="48px"
                     className="object-cover"
                   />
                 ) : (
@@ -402,7 +405,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
                 )}
               </div>
               <div>
-                <p className="text-[11px] font-bold text-booking-muted uppercase tracking-[0.02em]">Chủ nhà</p>
+                <p className="text-[11px] font-bold text-booking-muted uppercase tracking-[0.02em]">{t('roomDetail.hostTitle')}</p>
                 <h3 className="font-bold text-booking-text text-sm md:text-base mt-0.5">
                   {room.host?.fullName || 'Nguyễn Văn A'}
                 </h3>
@@ -413,38 +416,38 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
 
           {/* Card 2: About Room Description */}
           <div className="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-booking-text">Về căn phòng này</h2>
+            <h2 className="text-lg font-bold text-booking-text">{t('roomDetail.aboutRoom')}</h2>
             <p className={`mt-3 text-sm leading-relaxed ${room.description ? 'text-booking-muted' : 'text-slate-400 italic'}`}>
-              {room.description || "Không có mô tả cho phòng này."}
+              {room.description || t('roomDetail.noDesc')}
             </p>
           </div>
 
           {/* Card 2.5: Living Costs */}
           <div className="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-booking-text mb-4">Các khoản chi phí sinh hoạt</h2>
+            <h2 className="text-lg font-bold text-booking-text mb-4">{t('roomDetail.livingExpenses')}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200/50">
-                <span className="text-xs font-semibold text-booking-muted">Tiền điện</span>
+                <span className="text-xs font-semibold text-booking-muted">{t('roomDetail.electricCost')}</span>
                 <span className="text-sm font-bold text-booking-text">
-                  {room.electricityCost > 0 ? `${room.electricityCost.toLocaleString('vi-VN')} đ/kWh` : 'Theo giá nhà nước'}
+                  {room.electricityCost > 0 ? `${room.electricityCost.toLocaleString('vi-VN')}${t('roomDetail.vndPerKwh')}` : t('roomDetail.statePrice')}
                 </span>
               </div>
               <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200/50">
-                <span className="text-xs font-semibold text-booking-muted">Tiền nước</span>
+                <span className="text-xs font-semibold text-booking-muted">{t('roomDetail.waterCost')}</span>
                 <span className="text-sm font-bold text-booking-text">
-                  {room.waterCost > 0 ? `${room.waterCost.toLocaleString('vi-VN')} đ/khối` : 'Miễn phí'}
+                  {room.waterCost > 0 ? `${room.waterCost.toLocaleString('vi-VN')}${t('roomDetail.vndPerM3')}` : t('roomDetail.free')}
                 </span>
               </div>
               <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200/50">
-                <span className="text-xs font-semibold text-booking-muted">Internet / Wifi</span>
+                <span className="text-xs font-semibold text-booking-muted">{t('roomDetail.internetCost')}</span>
                 <span className="text-sm font-bold text-booking-text">
-                  {room.internetCost > 0 ? `${room.internetCost.toLocaleString('vi-VN')} đ/tháng` : 'Miễn phí'}
+                  {room.internetCost > 0 ? `${room.internetCost.toLocaleString('vi-VN')}${t('roomDetail.vndPerMonth')}` : t('roomDetail.free')}
                 </span>
               </div>
               <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200/50">
-                <span className="text-xs font-semibold text-booking-muted">Phí dịch vụ khác</span>
+                <span className="text-xs font-semibold text-booking-muted">{t('roomDetail.otherServiceFee')}</span>
                 <span className="text-sm font-bold text-booking-text">
-                  {room.serviceFee > 0 ? `${room.serviceFee.toLocaleString('vi-VN')} đ/tháng` : 'Không có'}
+                  {room.serviceFee > 0 ? `${room.serviceFee.toLocaleString('vi-VN')}${t('roomDetail.vndPerMonth')}` : t('roomDetail.none')}
                 </span>
               </div>
             </div>
@@ -453,7 +456,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
           {/* Card 3: Highlights / Amenities */}
           {displayAmenities.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-booking-text mb-4">Tiện ích nổi bật</h2>
+              <h2 className="text-lg font-bold text-booking-text mb-4">{t('roomDetail.highlights')}</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
                 {displayAmenities.map((item: any) => {
                   const IconComponent = item.icon;
@@ -470,7 +473,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
 
           {/* Card 4: Location Map */}
           <div id="position" className="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-booking-text mb-1">Vị trí</h2>
+            <h2 className="text-lg font-bold text-booking-text mb-1">{t('roomDetail.location')}</h2>
             <p className="text-sm text-booking-muted mb-4">{displayLocation}</p>
             <a href={googleMapsUrl} target="_blank" rel="noreferrer" className="relative block h-[250px] w-full rounded-2xl border border-slate-200 bg-[#e2e8f0] overflow-hidden shadow-inner group cursor-pointer">
               {/* Mock map background element */}
@@ -494,7 +497,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="bg-white/95 border border-slate-200 p-4 rounded-xl shadow-lg flex flex-col items-center gap-1 group-hover:scale-105 transition-transform duration-300">
                   <MapIcon className="h-6 w-6 text-booking-primary" />
-                  <span className="text-xs font-bold text-booking-text mt-1">Xem vị trí trên bản đồ</span>
+                  <span className="text-xs font-bold text-booking-text mt-1">{t('roomDetail.viewOnMap')}</span>
                 </div>
               </div>
             </a>
@@ -525,7 +528,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
             <div className="max-w-[50%]">
               <h4 className="font-bold text-sm md:text-base truncate">{room.title}</h4>
               <p className="text-xs text-slate-300 mt-0.5 font-medium">
-                Ảnh {currentImageIndex + 1} / {allImages.length}
+                {t('roomDetail.imagePrefix')}{currentImageIndex + 1} / {allImages.length}
               </p>
             </div>
 
@@ -536,7 +539,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
                   onClick={zoomOut}
                   disabled={zoomScale === 1}
                   className="rounded-full p-1 text-white hover:bg-white/10 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition"
-                  title="Thu nhỏ"
+                  title={t('roomDetail.zoomOut')}
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M18 12H6" />
@@ -549,7 +552,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
                   onClick={zoomIn}
                   disabled={zoomScale === 3}
                   className="rounded-full p-1 text-white hover:bg-white/10 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition"
-                  title="Phóng to"
+                  title={t('roomDetail.zoomIn')}
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
@@ -559,7 +562,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
                   onClick={resetZoom}
                   disabled={zoomScale === 1 && dragPosition.x === 0 && dragPosition.y === 0}
                   className="ml-1 rounded-full p-1 text-white hover:bg-white/10 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed transition border-l border-white/10 pl-2"
-                  title="Đặt lại"
+                  title={t('roomDetail.resetZoom')}
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
@@ -573,7 +576,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
                   resetZoom();
                 }}
                 className="rounded-full bg-white/10 p-2.5 text-white hover:bg-white/20 active:scale-95 transition"
-                aria-label="Đóng thư viện ảnh"
+                aria-label={t('roomDetail.closeGallery')}
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -592,7 +595,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
                   prevImage();
                 }}
                 className="absolute left-4 z-10 rounded-full bg-white/10 p-3 text-white hover:bg-white/20 active:scale-95 transition backdrop-blur-sm shadow-md"
-                aria-label="Ảnh trước"
+                aria-label={t('roomDetail.prevImage')}
               >
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -604,7 +607,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
             <div className="relative w-full h-full max-h-[65vh] md:max-h-[72vh] flex items-center justify-center overflow-hidden">
               <img
                 src={allImages[currentImageIndex]}
-                alt={`${room.title} - Xem chi tiết ảnh ${currentImageIndex + 1}`}
+                alt={`${room.title} - ${t('roomDetail.imagePrefix')}${currentImageIndex + 1}`}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUpOrLeave}
@@ -632,7 +635,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
                   nextImage();
                 }}
                 className="absolute right-4 z-10 rounded-full bg-white/10 p-3 text-white hover:bg-white/20 active:scale-95 transition backdrop-blur-sm shadow-md"
-                aria-label="Ảnh tiếp theo"
+                aria-label={t('roomDetail.nextImage')}
               >
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
@@ -663,7 +666,7 @@ export default function RoomDetailView({ room, sidebar, backLink, bottomSlot }: 
                   >
                     <img
                       src={imgUrl}
-                      alt={`Thu nhỏ ${idx + 1}`}
+                      alt={`${t('roomDetail.thumbnailPrefix')}${idx + 1}`}
                       className="h-full w-full object-cover"
                     />
                   </button>

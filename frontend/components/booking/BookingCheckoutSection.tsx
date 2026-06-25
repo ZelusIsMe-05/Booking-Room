@@ -7,6 +7,7 @@ import { apiClient } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
 import { useTenantChat } from '@/context/TenantChatContext';
 import ConfirmModal from '../common/ConfirmModal';
+import { useTranslation } from '@/context/LanguageContext';
 
 const verifiedTxns = new Set<string>();
 
@@ -35,6 +36,7 @@ export default function BookingCheckoutSection({
 }: BookingCheckoutSectionProps) {
   const { user } = useAuth();
   const { openChatWith } = useTenantChat();
+  const { t } = useTranslation();
   const toastShownRef = useRef<string | null>(null);
 
 
@@ -147,7 +149,7 @@ export default function BookingCheckoutSection({
       if (timerRef.current) clearInterval(timerRef.current);
       window.removeEventListener('deposit-updated', handleSyncEvent);
     };
-  }, [roomId]);
+  }, [roomId, user]);
 
   // Handle VNPAY callback parameters on redirect back to room page
   useEffect(() => {
@@ -178,7 +180,7 @@ export default function BookingCheckoutSection({
 
           if (res && res.data && res.data.transaction && res.data.transaction.status === 'SUCCESS') {
             window.dispatchEvent(new CustomEvent('show-toast', {
-              detail: { message: 'Thanh toán đặt cọc phòng thành công!', type: 'success' }
+              detail: { message: t('roomDetail.depositSuccess'), type: 'success' }
             }));
             
             // Clean up session storage draft
@@ -190,13 +192,13 @@ export default function BookingCheckoutSection({
             window.dispatchEvent(new CustomEvent('deposit-updated'));
           } else {
             window.dispatchEvent(new CustomEvent('show-toast', {
-              detail: { message: 'Thanh toán đặt cọc thất bại hoặc đã bị hủy.', type: 'error' }
+              detail: { message: t('roomDetail.depositFailed'), type: 'error' }
             }));
           }
         } catch (err: any) {
           console.error('Verify VNPAY error:', err);
           window.dispatchEvent(new CustomEvent('show-toast', {
-            detail: { message: err.response?.data?.message || err.message || 'Lỗi xác minh giao dịch.', type: 'error' }
+            detail: { message: err.response?.data?.message || err.message || t('roomDetail.verifyError'), type: 'error' }
           }));
         } finally {
           setLoading(false);
@@ -205,7 +207,7 @@ export default function BookingCheckoutSection({
 
       verifyVnpayCallback();
     }
-  }, [roomId]);
+  }, [roomId, t]);
 
   // Countdown timer effect
   useEffect(() => {
@@ -237,7 +239,7 @@ export default function BookingCheckoutSection({
     }
     if (user.role !== 'TENANT') {
       window.dispatchEvent(new CustomEvent('show-toast', {
-        detail: { message: 'Chỉ tài khoản Người thuê (Tenant) mới có thể thực hiện đặt cọc.', type: 'error' }
+        detail: { message: t('roomDetail.tenantOnlyDeposit'), type: 'error' }
       }));
       return;
     }
@@ -253,7 +255,7 @@ export default function BookingCheckoutSection({
       console.log('Create Deposit API Response:', depositRes);
 
       if (!depositRes) {
-        throw new Error('Không nhận được phản hồi từ hệ thống khi tạo đơn đặt cọc.');
+        throw new Error(t('roomDetail.noResponseDeposit'));
       }
 
       // Robust extraction of the deposit object and deposit ID
@@ -270,7 +272,7 @@ export default function BookingCheckoutSection({
       console.log('Extracted Deposit ID:', newDepositId);
 
       if (!newDepositId) {
-        throw new Error('Không thể tìm thấy mã đơn đặt cọc (deposit_id) trong phản hồi.');
+        throw new Error(t('roomDetail.noDepositId'));
       }
 
       const returnUrl = `${window.location.origin}/rooms/${roomId}`;
@@ -278,7 +280,7 @@ export default function BookingCheckoutSection({
       console.log('Create Transaction API Response:', txnRes);
 
       if (!txnRes) {
-        throw new Error('Không nhận được phản hồi từ hệ thống khi tạo giao dịch thanh toán.');
+        throw new Error(t('roomDetail.noResponseTxn'));
       }
 
       // Robust extraction of the payment url
@@ -294,7 +296,7 @@ export default function BookingCheckoutSection({
       console.log('Extracted Payment URL:', payUrl);
 
       if (!payUrl) {
-        throw new Error('Không thể tìm thấy đường dẫn thanh toán trong phản hồi.');
+        throw new Error(t('roomDetail.noPayUrl'));
       }
 
       // 3. Set states and start timer
@@ -312,7 +314,7 @@ export default function BookingCheckoutSection({
       setIsModalOpen(true);
     } catch (err: any) {
       console.error('Lỗi đặt cọc:', err);
-      setErrorMsg(err.message || 'Có lỗi xảy ra khi xử lý đơn cọc.');
+      setErrorMsg(err.message || t('roomDetail.processDepositError'));
     } finally {
       setLoading(false);
     }
@@ -325,7 +327,7 @@ export default function BookingCheckoutSection({
     try {
       if (!isExpired) {
         // Call cancel API if user manually cancelled
-        await bookingService.cancelDeposit(activeDepositId, 'Người dùng chủ động hủy thanh toán');
+        await bookingService.cancelDeposit(activeDepositId, t('roomDetail.userCancelledPay'));
       }
     } catch (err) {
       console.error('Lỗi hủy đơn cọc:', err);
@@ -345,11 +347,11 @@ export default function BookingCheckoutSection({
 
       if (isExpired) {
         window.dispatchEvent(new CustomEvent('show-toast', {
-          detail: { message: 'Giao dịch đặt cọc của bạn đã hết hạn (15 phút).', type: 'error' }
+          detail: { message: t('roomDetail.depositExpired'), type: 'error' }
         }));
       } else {
         window.dispatchEvent(new CustomEvent('show-toast', {
-          detail: { message: 'Đã hủy giao dịch đặt cọc thành công!', type: 'success' }
+          detail: { message: t('roomDetail.cancelDepositSuccess'), type: 'success' }
         }));
       }
     }
@@ -367,7 +369,7 @@ export default function BookingCheckoutSection({
     try {
       const [datePart, timePart] = dateTimeStr.split('T');
       const [year, month, day] = datePart.split('-');
-      return `${timePart} - Ngày ${day}/${month}/${year}`;
+      return `${timePart} - ${day}/${month}/${year}`;
     } catch (e) {
       return dateTimeStr;
     }
@@ -378,26 +380,26 @@ export default function BookingCheckoutSection({
       <aside className="lg:sticky lg:top-24 rounded-2xl border border-slate-200 bg-white p-6 shadow-md flex flex-col gap-5">
         <div>
           <span className="text-2xl md:text-3xl font-extrabold text-booking-text">
-            {price.toLocaleString('vi-VN')} đ
+            {price.toLocaleString('vi-VN')}{t('roomDetail.unitCurrency')}
           </span>
-          <span className="text-sm font-semibold text-booking-muted"> / tháng</span>
+          <span className="text-sm font-semibold text-booking-muted">{t('roomDetail.perMonth')}</span>
         </div>
 
         {/* Inner Details Container */}
         <div className="border border-slate-100 rounded-xl overflow-hidden bg-[#faf8ff] p-4 flex flex-col gap-3">
           <div>
-            <p className="text-[11px] font-bold text-booking-muted uppercase tracking-[0.02em]">Tiền cọc</p>
+            <p className="text-[11px] font-bold text-booking-muted uppercase tracking-[0.02em]">{t('roomDetail.depositLabel')}</p>
             <p className="mt-1 text-sm font-bold text-booking-text">
-              {deposit > 0 ? `${deposit.toLocaleString('vi-VN')} đ` : 'Không yêu cầu'}
+              {deposit > 0 ? `${deposit.toLocaleString('vi-VN')}${t('roomDetail.unitCurrency')}` : t('roomDetail.noDepositRequired')}
             </p>
           </div>
           <div className="border-t border-slate-200/50" />
           <div>
-            <p className="text-[11px] font-bold text-booking-muted uppercase tracking-[0.02em]">Trạng thái</p>
+            <p className="text-[11px] font-bold text-booking-muted uppercase tracking-[0.02em]">{t('roomDetail.statusLabel')}</p>
             {activeDepositStatus === 'CONFIRMED' ? (
-              <p className="mt-1 text-sm font-extrabold text-[#004ac6]">Đã đặt cọc</p>
+              <p className="mt-1 text-sm font-extrabold text-[#004ac6]">{t('roomDetail.statusDeposited')}</p>
             ) : (
-              <p className="mt-1 text-sm font-extrabold text-[#006a61]">Còn phòng</p>
+              <p className="mt-1 text-sm font-extrabold text-[#006a61]">{t('roomDetail.statusAvailable')}</p>
             )}
           </div>
         </div>
@@ -409,20 +411,20 @@ export default function BookingCheckoutSection({
               <div className="border border-slate-200 rounded-2xl bg-slate-50 p-4 flex flex-col gap-3 shadow-inner animate-in slide-in-from-top-3 duration-200">
                 <div className="flex items-center justify-between">
                   <span className="text-[13px] font-extrabold text-booking-text uppercase tracking-wide flex items-center gap-1">
-                    <span>📅</span> Đặt lịch hẹn xem phòng
+                    <span>📅</span> {t('roomDetail.scheduleViewing')}
                   </span>
                   <button
                     type="button"
                     onClick={() => setIsPickerExpanded(false)}
                     className="text-xs font-bold text-slate-400 hover:text-slate-600 transition"
                   >
-                    Đóng
+                    {t('roomDetail.close')}
                   </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-extrabold text-booking-muted uppercase tracking-wider">Chọn ngày</label>
+                    <label className="text-[11px] font-extrabold text-booking-muted uppercase tracking-wider">{t('roomDetail.selectDate')}</label>
                     <input
                       type="date"
                       value={tempDate}
@@ -432,7 +434,7 @@ export default function BookingCheckoutSection({
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-extrabold text-booking-muted uppercase tracking-wider">Chọn giờ</label>
+                    <label className="text-[11px] font-extrabold text-booking-muted uppercase tracking-wider">{t('roomDetail.selectTime')}</label>
                     <input
                       type="time"
                       value={tempTime}
@@ -448,14 +450,14 @@ export default function BookingCheckoutSection({
                     onClick={() => {
                       if (!tempDate || !tempTime) {
                         window.dispatchEvent(new CustomEvent('show-toast', {
-                          detail: { message: 'Vui lòng chọn đầy đủ cả ngày và giờ hẹn.', type: 'warning' }
+                          detail: { message: t('roomDetail.errDateRequired'), type: 'warning' }
                         }));
                         return;
                       }
                       const selected = new Date(`${tempDate}T${tempTime}`);
                       if (selected.getTime() <= Date.now()) {
                         window.dispatchEvent(new CustomEvent('show-toast', {
-                          detail: { message: 'Lịch hẹn xem phòng phải ở thời điểm tương lai.', type: 'warning' }
+                          detail: { message: t('roomDetail.errFutureRequired'), type: 'warning' }
                         }));
                         return;
                       }
@@ -464,7 +466,7 @@ export default function BookingCheckoutSection({
                     }}
                     className="flex-1 py-2 bg-[#004ac6] hover:bg-[#003f9e] text-white font-extrabold rounded-xl text-[13px] transition shadow-md active:scale-[0.98]"
                   >
-                    Áp dụng
+                    {t('roomDetail.btnApply')}
                   </button>
                   <button
                     type="button"
@@ -473,7 +475,7 @@ export default function BookingCheckoutSection({
                     }}
                     className="py-2 px-3.5 border border-slate-200 bg-white text-booking-text font-bold rounded-xl text-[13px] hover:bg-slate-50 transition active:scale-[0.98]"
                   >
-                    Hủy
+                    {t('roomDetail.btnCancel')}
                   </button>
                 </div>
               </div>
@@ -482,7 +484,7 @@ export default function BookingCheckoutSection({
                 <div className="flex items-center gap-2.5">
                   <span className="text-xl select-none">📅</span>
                   <div>
-                    <p className="text-[11px] font-extrabold text-[#004ac6] uppercase tracking-wider">Lịch hẹn xem phòng</p>
+                    <p className="text-[11px] font-extrabold text-[#004ac6] uppercase tracking-wider">{t('roomDetail.viewingAppointment')}</p>
                     <p className="text-sm font-extrabold text-booking-text mt-0.5">
                       {formatDisplayDateTime(appointmentTime)}
                     </p>
@@ -499,7 +501,7 @@ export default function BookingCheckoutSection({
                     }}
                     className="text-[13px] font-bold text-[#004ac6] hover:underline"
                   >
-                    Sửa
+                    {t('roomDetail.btnEdit')}
                   </button>
                   <span className="text-slate-300">|</span>
                   <button
@@ -510,7 +512,7 @@ export default function BookingCheckoutSection({
                       setTempTime('');
                     }}
                     className="h-6 w-6 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center font-bold text-[13px] transition active:scale-95"
-                    title="Xóa lịch hẹn"
+                    title={t('roomDetail.deleteAppointment')}
                   >
                     ✕
                   </button>
@@ -531,7 +533,7 @@ export default function BookingCheckoutSection({
                 className="w-full rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 font-bold py-3.5 px-4 text-[13px] text-booking-text flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-sm"
               >
                 <span>📅</span>
-                Đặt lịch hẹn xem phòng (Tùy chọn)
+                {t('roomDetail.scheduleOptional')}
               </button>
             )}
           </div>
@@ -550,7 +552,7 @@ export default function BookingCheckoutSection({
             <div className="flex items-center justify-between text-xs font-bold text-amber-800">
               <span className="flex items-center gap-1">
                 <ClockIcon className="h-4 w-4" />
-                Đang chờ thanh toán...
+                {t('roomDetail.waitingPay')}
               </span>
               <span>{formatTime(countdown)}</span>
             </div>
@@ -558,7 +560,7 @@ export default function BookingCheckoutSection({
               onClick={() => setIsModalOpen(true)}
               className="w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs transition"
             >
-              Mở lại trang thanh toán
+              {t('roomDetail.reopenPayPage')}
             </button>
           </div>
         )}
@@ -569,8 +571,8 @@ export default function BookingCheckoutSection({
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-emerald-800 shadow-sm">
               <span className="text-2xl">✅</span>
               <div className="text-left">
-                <p className="text-sm font-extrabold">Đã đặt cọc thành công</p>
-                <p className="text-xs text-emerald-600 mt-0.5">Phòng đã được khóa để chờ chủ phòng duyệt đơn cọc.</p>
+                <p className="text-sm font-extrabold">{t('roomDetail.depositSuccessful')}</p>
+                <p className="text-xs text-emerald-600 mt-0.5">{t('roomDetail.roomLockedNote')}</p>
               </div>
             </div>
           ) : (
@@ -588,20 +590,20 @@ export default function BookingCheckoutSection({
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Đang xử lý...
+                  {t('roomDetail.processing')}
                 </span>
               ) : roomStatus === 'HIDDEN' ? (
-                <>Phòng không khả dụng</>
+                <>{t('roomDetail.roomNotAvailable')}</>
               ) : roomStatus === 'RENTED' ? (
                 user && user.userId === rentedBy ? (
-                  <>Bạn đang thuê phòng này</>
+                  <>{t('roomDetail.rentedByYou')}</>
                 ) : (
-                  <>Phòng đã được thuê</>
+                  <>{t('roomDetail.roomRented')}</>
                 )
               ) : (
                 <>
                   <WalletIcon className="h-5 w-5 text-white" />
-                  Đặt cọc ngay
+                  {t('roomDetail.depositNow')}
                 </>
               )}
             </button>
@@ -618,13 +620,13 @@ export default function BookingCheckoutSection({
               }
               if (user.role !== 'TENANT') {
                 window.dispatchEvent(new CustomEvent('show-toast', {
-                  detail: { message: 'Chỉ tài khoản Người thuê (Tenant) mới có thể nhắn tin với chủ nhà.', type: 'error' }
+                  detail: { message: t('roomDetail.tenantOnlyMessage'), type: 'error' }
                 }));
                 return;
               }
               if (!host || !host.userId) {
                 window.dispatchEvent(new CustomEvent('show-toast', {
-                  detail: { message: 'Không tìm thấy thông tin chủ phòng.', type: 'error' }
+                  detail: { message: t('roomDetail.noHostInfo'), type: 'error' }
                 }));
                 return;
               }
@@ -633,14 +635,14 @@ export default function BookingCheckoutSection({
             className="w-full rounded-xl border border-booking-primary text-booking-primary font-bold py-3.5 px-5 flex items-center justify-center gap-2 hover:bg-[#004ac6]/5 transition active:scale-[0.98]"
           >
             <MessageIcon className="h-5 w-5 text-booking-primary" />
-            Nhắn tin cho chủ phòng
+            {t('roomDetail.messageHost')}
           </button>
         </div>
 
         {/* Footnote */}
         <div className="flex items-center justify-center gap-1 text-[11px] text-booking-muted mt-1 font-medium">
           <LockIcon className="h-3.5 w-3.5 text-booking-muted" />
-          <span>Giao dịch an toàn qua Booking-Room</span>
+          <span>{t('roomDetail.secureTransaction')}</span>
         </div>
       </aside>
 
@@ -651,13 +653,13 @@ export default function BookingCheckoutSection({
             {/* Modal Header */}
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div>
-                <h3 className="font-extrabold text-booking-text text-base md:text-lg">Chi tiết đơn đặt cọc phòng</h3>
+                <h3 className="font-extrabold text-booking-text text-base md:text-lg">{t('roomDetail.depositModalTitle')}</h3>
                 <p className="text-xs text-booking-muted mt-0.5 max-w-[320px] truncate">{roomTitle}</p>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="h-8 w-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center font-bold text-sm transition"
-                aria-label="Đóng giao diện thanh toán"
+                aria-label={t('roomDetail.closePayInterface')}
               >
                 ✕
               </button>
@@ -668,39 +670,39 @@ export default function BookingCheckoutSection({
               {/* Timer Row */}
               <div className="flex items-center gap-2 py-2 px-4 rounded-full bg-rose-50 border border-rose-200 text-rose-600 font-extrabold text-sm md:text-base animate-pulse">
                 <ClockIcon className="h-5 w-5 text-rose-500" />
-                Thời gian thanh toán còn lại: {formatTime(countdown)}
+                {t('roomDetail.remainingTime')}{formatTime(countdown)}
               </div>
 
               {/* Detailed Invoice Table */}
               <div className="w-full border border-slate-200 rounded-2xl overflow-hidden bg-white text-sm">
                 <div className="bg-[#FAF8FF] border-b border-slate-200 px-4 py-3 text-left font-bold text-booking-text flex items-center gap-2">
-                  <span className="text-lg">📋</span> Thông tin chi tiết hóa đơn đặt cọc
+                  <span className="text-lg">📋</span> {t('roomDetail.invoiceDetails')}
                 </div>
                 <div className="divide-y divide-slate-100 text-left">
                   <div className="flex justify-between items-center px-4 py-3">
-                    <span className="text-booking-muted font-medium">Mã đơn đặt cọc</span>
+                    <span className="text-booking-muted font-medium">{t('roomDetail.depositCode')}</span>
                     <span className="font-mono text-xs font-bold text-booking-text bg-slate-100 px-2 py-0.5 rounded">{activeDepositId}</span>
                   </div>
                   <div className="flex justify-between items-center px-4 py-3">
-                    <span className="text-booking-muted font-medium">Tên phòng</span>
+                    <span className="text-booking-muted font-medium">{t('roomDetail.roomName')}</span>
                     <span className="font-bold text-booking-text max-w-[200px] text-right truncate" title={roomTitle}>{roomTitle}</span>
                   </div>
                   <div className="flex justify-between items-center px-4 py-3">
-                    <span className="text-booking-muted font-medium">Giá thuê phòng</span>
-                    <span className="font-bold text-booking-text">{price.toLocaleString('vi-VN')} đ/tháng</span>
+                    <span className="text-booking-muted font-medium">{t('roomDetail.roomRentPrice')}</span>
+                    <span className="font-bold text-booking-text">{price.toLocaleString('vi-VN')}{t('roomDetail.vndPerMonth')}</span>
                   </div>
                   <div className="flex justify-between items-center px-4 py-3">
-                    <span className="text-booking-muted font-medium font-bold">Số tiền cọc cần trả</span>
-                    <span className="font-extrabold text-[#004ac6] text-base">{deposit.toLocaleString('vi-VN')} đ</span>
+                    <span className="text-booking-muted font-medium font-bold">{t('roomDetail.depositToPay')}</span>
+                    <span className="font-extrabold text-[#004ac6] text-base">{deposit.toLocaleString('vi-VN')}{t('roomDetail.unitCurrency')}</span>
                   </div>
                   <div className="flex justify-between items-center px-4 py-3">
-                    <span className="text-booking-muted font-medium">Nội dung thanh toán</span>
+                    <span className="text-booking-muted font-medium">{t('roomDetail.payContent')}</span>
                     <span className="font-medium text-booking-text max-w-[220px] text-right text-xs text-[#004ac6]">
-                      Thanh toan dat coc cho phong: {roomTitle}
+                      {t('roomDetail.payContentPrefix')}{roomTitle}
                     </span>
                   </div>
                   <div className="flex justify-between items-center px-4 py-3">
-                    <span className="text-booking-muted font-medium">Phương thức thanh toán</span>
+                    <span className="text-booking-muted font-medium">{t('roomDetail.payMethod')}</span>
                     <span className="font-bold text-booking-text flex items-center gap-1">
                       <span className="text-xs">💳</span> VNPAY Sandbox
                     </span>
@@ -711,7 +713,7 @@ export default function BookingCheckoutSection({
                   <>
                     <div className="border-t border-slate-200/50 my-1" />
                     <div>
-                      <p className="text-[11px] font-bold text-booking-muted uppercase tracking-[0.02em]">Lịch hẹn xem phòng</p>
+                      <p className="text-[11px] font-bold text-booking-muted uppercase tracking-[0.02em]">{t('roomDetail.viewingAppointment')}</p>
                       <p className="text-sm font-extrabold text-booking-text mt-0.5 flex items-center gap-1.5">
                         <span>📅</span> {formatDisplayDateTime(appointmentTime)}
                       </p>
@@ -721,7 +723,7 @@ export default function BookingCheckoutSection({
               </div>
 
               <p className="text-[11px] text-booking-muted leading-relaxed">
-                Vui lòng xác nhận thông tin hóa đơn đặt cọc ở trên. Khi nhấn <strong>Thanh toán ngay</strong>, bạn sẽ được đưa tới Cổng thanh toán VNPAY Sandbox để hoàn tất giao dịch.
+                {t('roomDetail.confirmNote1')}<strong>{t('roomDetail.payNow')}</strong>{t('roomDetail.confirmNote2')}
               </p>
             </div>
 
@@ -738,10 +740,10 @@ export default function BookingCheckoutSection({
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    Đang hủy...
+                    {t('roomDetail.cancelling')}
                   </>
                 ) : (
-                  'Hủy giao dịch'
+                  t('roomDetail.cancelTransaction')
                 )}
               </button>
 
@@ -754,7 +756,7 @@ export default function BookingCheckoutSection({
                 disabled={!paymentUrl || loading}
                 className="flex-1 py-3 px-4 bg-[#004ac6] hover:bg-[#003f9e] text-white font-bold rounded-xl transition text-sm flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                💳 Thanh toán ngay
+                💳 {t('roomDetail.payNow')}
               </button>
             </div>
           </div>

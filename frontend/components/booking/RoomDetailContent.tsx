@@ -6,12 +6,14 @@ import BookingHeader from '@/components/booking/BookingHeader';
 import BookingCheckoutSection from '@/components/booking/BookingCheckoutSection';
 import RoomDetailView from '@/components/booking/RoomDetailView';
 import RoomReviewsSection from '@/components/booking/RoomReviewsSection';
+import { useTranslation } from '@/context/LanguageContext';
 
 interface RoomDetailContentProps {
   room: any;
 }
 
 export default function RoomDetailContent({ room }: RoomDetailContentProps) {
+  const { t } = useTranslation();
   return (
     <div className="min-h-screen bg-booking-surface text-booking-text font-sans">
       <BookingHeader />
@@ -19,7 +21,7 @@ export default function RoomDetailContent({ room }: RoomDetailContentProps) {
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <RoomDetailView
           room={room}
-          backLink={{ href: '/rooms', label: 'Quay lại danh sách' }}
+          backLink={{ href: '/rooms', label: t('roomDetail.backToList') }}
           sidebar={
             <BookingCheckoutSection
               roomId={room.id}

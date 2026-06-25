@@ -1,7 +1,14 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google'; // 1. Import font Inter từ Google
 import './globals.css';
 import 'leaflet/dist/leaflet.css';
 import { AuthProvider } from '@/context/AuthContext';
+
+// 2. Cấu hình font (hỗ trợ tiếng Việt để không bị lỗi dấu)
+const inter = Inter({
+  subsets: ['latin', 'vietnamese'],
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: {
@@ -25,7 +32,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi" suppressHydrationWarning>
-      <body suppressHydrationWarning>
+      {/* 3. Áp dụng font vào thẻ body */}
+      <body suppressHydrationWarning className={inter.className}>
         <LanguageProvider>
           <AuthProvider>
             <SocketProvider>

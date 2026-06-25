@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { BookingRoom } from '@/data/bookingRooms';
+import { useTranslation } from '@/context/LanguageContext';
 
 interface NominatimResult {
   place_id: number;
@@ -40,6 +41,7 @@ export default function RoomMap({
   searchCenter = null,
 }: RoomMapProps) {
   const router = useRouter();
+  const { t } = useTranslation();
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -196,7 +198,7 @@ export default function RoomMap({
               padding:4px 10px;border-radius:20px;white-space:nowrap;
               box-shadow:0 2px 8px rgba(0,0,0,0.3);border:2px solid white;
               transform:translateX(-50%);display:inline-block;
-            ">📍 Vị trí tìm kiếm</div>`,
+            ">${t('roomDetail.mapSearchLocation')}</div>`,
             iconSize: [0, 0],
             iconAnchor: [0, 0],
           }),
@@ -217,7 +219,7 @@ export default function RoomMap({
               padding:4px 8px;border-radius:20px;white-space:nowrap;
               box-shadow:0 2px 8px rgba(0,0,0,0.3);border:2px solid white;
               cursor:pointer;transform:translateX(-50%);display:inline-block;
-            ">${priceLabel}/tháng</div>
+            ">${priceLabel}${t('roomDetail.mapPerMonth')}</div>
             <div style="
               width:0;height:0;
               border-left:6px solid transparent;border-right:6px solid transparent;
@@ -240,7 +242,7 @@ export default function RoomMap({
             <a href="/rooms/${room.id}" style="
               display:block;text-align:center;background:#004AC6;color:white;
               padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none
-            ">Xem chi tiết →</a>
+            ">${t('roomDetail.mapViewDetail')}</a>
           </div>
         `);
 
@@ -317,13 +319,13 @@ export default function RoomMap({
     <div className="relative w-full rounded-2xl overflow-hidden border border-booking-border shadow-sm">
       {/* Instruction overlay */}
       <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 backdrop-blur-sm border border-booking-border rounded-xl px-3 py-1.5 text-xs font-medium text-booking-muted shadow-sm pointer-events-none whitespace-nowrap">
-        🖱️ Click trên bản đồ để chọn vị trí tìm kiếm
+        {t('roomDetail.mapClickOnMap')}
       </div>
 
       {/* Room count badge */}
       {roomsWithGeo.length > 0 && (
         <div className="absolute top-3 left-3 z-[1000] bg-white/90 backdrop-blur-sm border border-booking-border rounded-xl px-3 py-1.5 text-xs font-semibold text-booking-text shadow-sm">
-          📍 {roomsWithGeo.length} phòng trên bản đồ
+          {t('roomDetail.mapRoomCount').replace('{{count}}', String(roomsWithGeo.length))}
         </div>
       )}
 
@@ -347,7 +349,7 @@ export default function RoomMap({
             type="text"
             value={mapSearchQuery}
             onChange={handleMapSearchInput}
-            placeholder="Tìm địa điểm trên bản đồ..."
+            placeholder={t('roomDetail.mapSearchBarPlaceholder')}
             className="w-full py-2.5 pl-10 pr-9 text-sm text-booking-text outline-none bg-transparent"
           />
           {/* Clear button */}
@@ -356,7 +358,7 @@ export default function RoomMap({
               type="button"
               onClick={() => { setMapSearchQuery(''); setMapSearchResults([]); }}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-              aria-label="Xóa tìm kiếm"
+              aria-label={t('roomDetail.mapClearSearch')}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
@@ -372,10 +374,10 @@ export default function RoomMap({
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 border-b border-gray-100">
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                {mapSearchResults.length} địa điểm
+                {t('roomDetail.mapPlaces').replace('{{count}}', String(mapSearchResults.length))}
               </span>
               {mapSearchResults.length > 3 && (
-                <span className="text-[10px] text-gray-400">Cuộn để xem thêm</span>
+                <span className="text-[10px] text-gray-400">{t('roomDetail.mapSuggestScroll')}</span>
               )}
             </div>
 
@@ -436,7 +438,7 @@ export default function RoomMap({
           <div className="flex items-center gap-2 min-w-0">
             <span className="h-3 w-3 shrink-0 rounded-full bg-[#E63946]" />
             <div className="min-w-0">
-              <p className="text-xs font-bold text-booking-text">Vị trí đã chọn</p>
+              <p className="text-xs font-bold text-booking-text">{t('roomDetail.mapSelectedPoint')}</p>
               <p className="truncate text-xs text-booking-muted max-w-[200px]">
                 {reverseLabel || `${selectedPoint.lat.toFixed(5)}, ${selectedPoint.lng.toFixed(5)}`}
               </p>
@@ -447,7 +449,7 @@ export default function RoomMap({
             onClick={handleSearchHere}
             className="shrink-0 rounded-xl bg-booking-primary px-4 py-2 text-xs font-bold text-white hover:bg-booking-primaryDark transition shadow-sm"
           >
-            Tìm phòng tại đây →
+            {t('roomDetail.mapSearchHere')}
           </button>
           <button
             type="button"
@@ -472,7 +474,7 @@ export default function RoomMap({
       {/* Warning: rooms without coords */}
       {noGeoCount > 0 && !selectedPoint && (
         <div className="absolute bottom-3 left-3 right-3 z-[1000] bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-800 font-medium text-center shadow-sm">
-          ⚠️ {noGeoCount} phòng chưa có tọa độ và không hiển thị trên bản đồ
+          {t('roomDetail.mapNoGeoWarning').replace('{{count}}', String(noGeoCount))}
         </div>
       )}
 
@@ -481,8 +483,8 @@ export default function RoomMap({
         <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-[1000]">
           <div className="text-center text-booking-muted">
             <div className="text-3xl mb-2">🗺️</div>
-            <p className="font-medium text-sm">Không có phòng nào để hiển thị</p>
-            <p className="text-xs mt-1">Click lên bản đồ để tìm phòng gần vị trí đó</p>
+            <p className="font-medium text-sm">{t('roomDetail.mapEmptyTitle')}</p>
+            <p className="text-xs mt-1">{t('roomDetail.mapEmptyHint')}</p>
           </div>
         </div>
       )}

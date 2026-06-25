@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { reviewService, RoomReview, ReviewReply } from '@/services/reviewService';
 import { bookingService } from '@/services/bookingService';
+import { useTranslation } from '@/context/LanguageContext';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -118,6 +119,7 @@ function ReviewItem({
   onSubmitEditReply,
   onCancelEditReply,
 }: ReviewItemProps) {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const isReplying = activeReplyBoxId === rev.review_id;
   const isSubmitting = submittingReplyId === rev.review_id;
@@ -148,7 +150,7 @@ function ReviewItem({
                 <span className="text-xs font-extrabold text-booking-text">{rep.authorName}</span>
                 {rep.isHost && (
                   <span className="text-[9px] font-extrabold bg-slate-800 text-white px-1.5 py-0.5 rounded uppercase tracking-wider">
-                    Chủ phòng
+                    {t('roomDetail.hostBadge')}
                   </span>
                 )}
               </div>
@@ -168,7 +170,7 @@ function ReviewItem({
                   <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
                   </svg>
-                  {isEditingThis ? 'Hủy chỉnh sửa' : 'Chỉnh sửa'}
+                  {isEditingThis ? t('roomDetail.cancelEdit') : t('roomDetail.edit')}
                 </button>
               )}
 
@@ -181,7 +183,7 @@ function ReviewItem({
                   <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6 6-6" />
                   </svg>
-                  {isReplyingThis ? 'Hủy phản hồi' : 'Phản hồi'}
+                  {isReplyingThis ? t('roomDetail.cancelReply') : t('roomDetail.reply')}
                 </button>
               )}
             </div>
@@ -195,7 +197,7 @@ function ReviewItem({
               rows={2}
               value={editReplyContent}
               onChange={(e) => onEditReplyContentChange(e.target.value)}
-              placeholder="Nhập nội dung phản hồi mới..."
+              placeholder={t('roomDetail.newReplyPlaceholder')}
               className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs font-medium outline-none focus:border-[#004ac6] focus:ring-1 focus:ring-[#004ac6]/10 resize-none transition"
             />
             <div className="flex items-center justify-end gap-2">
@@ -204,7 +206,7 @@ function ReviewItem({
                 onClick={onCancelEditReply}
                 className="text-[11px] font-bold text-slate-400 hover:text-slate-600 transition px-2 py-1"
               >
-                Hủy
+                {t('roomDetail.btnCancel')}
               </button>
               <button
                 type="button"
@@ -218,7 +220,7 @@ function ReviewItem({
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
                 )}
-                Lưu
+                {t('roomDetail.save')}
               </button>
             </div>
           </div>
@@ -231,7 +233,7 @@ function ReviewItem({
               rows={2}
               value={replyContent}
               onChange={(e) => onReplyContentChange(e.target.value)}
-              placeholder="Nhập phản hồi..."
+              placeholder={t('roomDetail.replyPlaceholder')}
               className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs font-medium outline-none focus:border-[#004ac6] focus:ring-1 focus:ring-[#004ac6]/10 resize-none transition"
             />
             <div className="flex items-center justify-end gap-2">
@@ -240,7 +242,7 @@ function ReviewItem({
                 onClick={onCancelReply}
                 className="text-[11px] font-bold text-slate-400 hover:text-slate-600 transition px-2 py-1"
               >
-                Hủy
+                {t('roomDetail.btnCancel')}
               </button>
               <button
                 type="button"
@@ -254,7 +256,7 @@ function ReviewItem({
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
                 )}
-                Gửi
+                {t('roomDetail.send')}
               </button>
             </div>
           </div>
@@ -285,7 +287,7 @@ function ReviewItem({
             <div className="flex items-center gap-2">
               <span className="font-extrabold text-booking-text text-sm">{rev.reviewer_name}</span>
               <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-[#137333] bg-[#e6f4ea] px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                ✓ Đã xác thực thuê
+                {t('roomDetail.verifiedTenant')}
               </span>
             </div>
             <span className="text-[11px] font-bold text-booking-muted">{formatDate(rev.created_at)}</span>
@@ -294,7 +296,7 @@ function ReviewItem({
           <StarRow rating={rev.rating} />
 
           <p className={`text-sm leading-relaxed ${rev.comment ? 'text-booking-text font-medium' : 'text-slate-400 italic font-normal text-xs'}`}>
-            {rev.comment || 'Khách thuê chỉ đánh giá số sao.'}
+            {rev.comment || t('roomDetail.starsOnlyRev')}
           </p>
 
           {/* Action row */}
@@ -308,7 +310,7 @@ function ReviewItem({
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
                 </svg>
-                {isEditing ? 'Hủy chỉnh sửa' : 'Chỉnh sửa'}
+                {isEditing ? t('roomDetail.cancelEdit') : t('roomDetail.edit')}
               </button>
             )}
 
@@ -321,7 +323,7 @@ function ReviewItem({
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6 6-6" />
                 </svg>
-                {isReplying ? 'Hủy phản hồi' : 'Phản hồi'}
+                {isReplying ? t('roomDetail.cancelReply') : t('roomDetail.reply')}
               </button>
             )}
 
@@ -337,7 +339,7 @@ function ReviewItem({
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
                 </svg>
-                {collapsed ? `Hiện ${replies.length} phản hồi` : 'Ẩn phản hồi'}
+                {collapsed ? t('roomDetail.showReplies').replace('{{count}}', String(replies.length)) : t('roomDetail.hideReplies')}
               </button>
             )}
           </div>
@@ -356,7 +358,7 @@ function ReviewItem({
         <div className="mt-3 space-y-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 animate-in slide-in-from-top-2 duration-150" style={{ marginLeft: '3.25rem' }}>
 
           <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-extrabold text-booking-muted uppercase tracking-wider">Đánh giá số sao</span>
+            <span className="text-[10px] font-extrabold text-booking-muted uppercase tracking-wider">{t('roomDetail.starRatingLabel')}</span>
             <div className="flex items-center gap-1.5 h-[28px]">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
@@ -375,7 +377,7 @@ function ReviewItem({
               ))}
               {editRating > 0 && (
                 <span className="text-[10px] font-extrabold text-[#004ac6] bg-[#004ac6]/5 px-2 py-0.5 rounded-full ml-1">
-                  {editRating} sao
+                  {editRating} {t('roomDetail.stars')}
                 </span>
               )}
             </div>
@@ -383,13 +385,13 @@ function ReviewItem({
 
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-extrabold text-booking-muted uppercase tracking-wider">
-              Nội dung bình luận <span className="text-slate-400 font-normal lowercase">(Tùy chọn)</span>
+              {t('roomDetail.commentLabel')} <span className="text-slate-400 font-normal lowercase">{t('roomDetail.optional')}</span>
             </label>
             <textarea
               rows={2}
               value={editComment}
               onChange={(e) => onEditCommentChange(e.target.value)}
-              placeholder="Bạn có thể viết thêm nhận xét chi tiết hoặc bỏ trống..."
+              placeholder={t('roomDetail.commentEditPlaceholder')}
               className="w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs font-medium outline-none focus:border-[#004ac6] focus:ring-1 focus:ring-[#004ac6]/10 resize-none transition"
             />
           </div>
@@ -400,7 +402,7 @@ function ReviewItem({
               onClick={onCancelEdit}
               className="text-xs font-bold text-slate-400 hover:text-slate-600 transition px-3 py-1.5 rounded-lg hover:bg-slate-100"
             >
-              Hủy
+              {t('roomDetail.btnCancel')}
             </button>
             <button
               type="button"
@@ -418,7 +420,7 @@ function ReviewItem({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12zm0 0h7.5" />
                 </svg>
               )}
-              {isSubmittingEdit ? 'Đang cập nhật...' : 'Cập nhật'}
+              {isSubmittingEdit ? t('roomDetail.updating') : t('roomDetail.update')}
             </button>
           </div>
         </div>
@@ -431,18 +433,18 @@ function ReviewItem({
             rows={2}
             value={replyContent}
             onChange={(e) => onReplyContentChange(e.target.value)}
-            placeholder="Nhập nội dung phản hồi..."
+            placeholder={t('roomDetail.replyBoxPlaceholder')}
             className="w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs font-medium outline-none focus:border-[#004ac6] focus:ring-1 focus:ring-[#004ac6]/10 resize-none transition"
           />
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-slate-400">Ctrl + Enter để gửi</span>
+            <span className="text-[10px] text-slate-400">{t('roomDetail.ctrlEnterHint')}</span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={onCancelReply}
                 className="text-xs font-bold text-slate-400 hover:text-slate-600 transition px-3 py-1.5 rounded-lg hover:bg-slate-100"
               >
-                Hủy
+                {t('roomDetail.btnCancel')}
               </button>
               <button
                 type="button"
@@ -460,7 +462,7 @@ function ReviewItem({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12zm0 0h7.5" />
                   </svg>
                 )}
-                {isSubmitting ? 'Đang gửi...' : 'Gửi phản hồi'}
+                {isSubmitting ? t('roomDetail.sending') : t('roomDetail.sendReply')}
               </button>
             </div>
           </div>
@@ -476,6 +478,7 @@ function ReviewItem({
 
 export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) {
   const { user } = useAuth();
+  const { t } = useTranslation();
 
   const [reviews, setReviews] = useState<RoomReview[]>([]);
   const [loading, setLoading] = useState(true);
@@ -581,9 +584,9 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleAddReview = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) { showErrorToast('Vui lòng đăng nhập!'); return; }
-    if (rating === 0) { showErrorToast('Vui lòng chọn số sao đánh giá!'); return; }
-    if (!eligibleDepositId) { showErrorToast('Bạn không có đơn đặt cọc hợp lệ để đánh giá phòng này.'); return; }
+    if (!user) { showErrorToast(t('roomDetail.errPleaseLogin')); return; }
+    if (rating === 0) { showErrorToast(t('roomDetail.errSelectStars')); return; }
+    if (!eligibleDepositId) { showErrorToast(t('roomDetail.errNoValidDeposit')); return; }
     try {
       const res = await reviewService.createReview({
         deposit_id: eligibleDepositId,
@@ -593,12 +596,12 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
       if (res?.data) {
         setCommentContent('');
         setRating(0);
-        showToast('Đăng đánh giá thành công!');
+        showToast(t('roomDetail.successRevPosted'));
         fetchReviews();
         setIsEligible(false);
       }
     } catch (err: any) {
-      showErrorToast(err.response?.data?.message || err.message || 'Có lỗi xảy ra khi gửi đánh giá.');
+      showErrorToast(err.response?.data?.message || err.message || t('roomDetail.errRevPost'));
     }
   };
 
@@ -617,7 +620,7 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
 
   const handleSubmitEdit = async (reviewId: string) => {
     if (editRating === 0) {
-      showErrorToast('Vui lòng chọn số sao đánh giá!');
+      showErrorToast(t('roomDetail.errSelectStars'));
       return;
     }
     setSubmittingEditId(reviewId);
@@ -630,9 +633,9 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
       setEditRating(0);
       setEditComment('');
       await fetchReviews();
-      showToast('Cập nhật đánh giá thành công!');
+      showToast(t('roomDetail.successRevUpdated'));
     } catch (err: any) {
-      showErrorToast(err.response?.data?.message || err.message || 'Có lỗi khi cập nhật đánh giá.');
+      showErrorToast(err.response?.data?.message || err.message || t('roomDetail.errRevUpdate'));
     } finally {
       setSubmittingEditId(null);
     }
@@ -657,9 +660,9 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
       setEditingReplyId(null);
       setEditReplyContent('');
       await fetchReviews();
-      showToast('Cập nhật phản hồi thành công!');
+      showToast(t('roomDetail.successRepUpdated'));
     } catch (err: any) {
-      showErrorToast(err.response?.data?.message || err.message || 'Có lỗi khi cập nhật phản hồi.');
+      showErrorToast(err.response?.data?.message || err.message || t('roomDetail.errRepUpdate'));
     } finally {
       setSubmittingReplyEditId(null);
     }
@@ -675,9 +678,9 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
       setActiveReplyBoxId(null);
       // Optimistically refresh reviews to pull new reply from DB
       await fetchReviews();
-      showToast('Đã gửi phản hồi thành công!');
+      showToast(t('roomDetail.successRepSent'));
     } catch (err: any) {
-      showErrorToast(err.response?.data?.message || err.message || 'Có lỗi khi gửi phản hồi.');
+      showErrorToast(err.response?.data?.message || err.message || t('roomDetail.errRepSent'));
     } finally {
       setSubmittingReplyId(null);
     }
@@ -701,10 +704,10 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
       {/* Title */}
       <div className="border-b border-slate-100 pb-4">
         <h2 className="text-xl font-extrabold text-booking-text flex items-center gap-2">
-          <span>💬</span> Đánh giá &amp; Bình luận từ khách thuê
+          <span>💬</span> {t('roomDetail.reviewsTitle')}
         </h2>
         <p className="text-xs text-booking-muted mt-1">
-          Chỉ những khách thuê đã từng đặt cọc thành công mới được đánh giá phòng này.
+          {t('roomDetail.reviewsSubtitle')}
         </p>
       </div>
 
@@ -720,13 +723,13 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
             ))}
           </div>
           <span className="text-xs font-bold text-booking-muted mt-2 uppercase tracking-wider">
-            {totalReviews} đánh giá thực tế
+            {t('roomDetail.verifiedRevsCount').replace('{{count}}', String(totalReviews))}
           </span>
         </div>
         <div className="flex flex-col justify-center space-y-2.5">
           {[5, 4, 3, 2, 1].map((stars) => (
             <div key={stars} className="flex items-center gap-3 text-xs md:text-sm font-semibold">
-              <span className="w-12 text-booking-text font-bold flex items-center gap-1">{stars} sao</span>
+              <span className="w-12 text-booking-text font-bold flex items-center gap-1">{stars} {t('roomDetail.stars')}</span>
               <div className="flex-1 h-2 rounded-full bg-slate-200/80 overflow-hidden">
                 <div style={{ width: pct(starCounts[stars - 1]) }} className="h-full bg-[#004ac6] rounded-full transition-all duration-500" />
               </div>
@@ -740,7 +743,7 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
       {!user ? (
         <div className="bg-slate-50 border border-slate-200/50 rounded-2xl p-5 text-center flex flex-col items-center gap-3">
           <p className="text-sm font-semibold text-booking-muted">
-            Vui lòng đăng nhập bằng tài khoản Người thuê để gửi đánh giá.
+            {t('roomDetail.loginToReview')}
           </p>
           <button
             type="button"
@@ -753,13 +756,13 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
             }}
             className="inline-flex items-center gap-1.5 rounded-xl bg-[#004ac6] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#003f9e] transition active:scale-95"
           >
-            Đăng nhập ngay
+            {t('roomDetail.loginNow')}
           </button>
         </div>
       ) : hasAlreadyReviewed ? (
         <div className="bg-blue-50 border border-blue-100/50 rounded-2xl p-5 text-center">
           <p className="text-sm font-semibold text-[#004ac6]">
-            Bạn đã đánh giá phòng này rồi. Bạn có thể chỉnh sửa hoặc thay đổi câu đánh giá của mình ở phần danh sách bình luận phía dưới.
+            {t('roomDetail.alreadyReviewedNote')}
           </p>
         </div>
       ) : checkingEligibility ? (
@@ -768,7 +771,7 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          Đang kiểm tra quyền viết đánh giá...
+          {t('roomDetail.checkingEligibility')}
         </div>
       ) : (
         <form
@@ -778,21 +781,21 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
           <fieldset disabled={!isEligible} className="space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <h3 className="font-extrabold text-booking-text text-sm md:text-base flex items-center gap-1.5">
-                <span>✍️</span> Viết đánh giá của bạn
+                <span>✍️</span> {t('roomDetail.writeReviewTitle')}
               </h3>
               {!isEligible ? (
                 <span className="text-xs text-rose-600 font-bold bg-rose-50 border border-rose-100 px-2.5 py-0.5 rounded-full">
-                  🔒 Chỉ khả dụng cho khách đã thuê phòng
+                  {t('roomDetail.tenantOnlyLock')}
                 </span>
               ) : (
                 <span className="text-xs text-booking-muted font-semibold">
-                  Đánh giá dưới tên: <strong className="text-booking-text">{user.fullName}</strong>
+                  {t('roomDetail.reviewAs')}<strong className="text-booking-text">{user.fullName}</strong>
                 </span>
               )}
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-extrabold text-booking-muted uppercase tracking-wider">Đánh giá số sao</span>
+              <span className="text-[11px] font-extrabold text-booking-muted uppercase tracking-wider">{t('roomDetail.starRatingLabel')}</span>
               <div className="flex items-center gap-1.5 h-[38px]">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
@@ -813,7 +816,7 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
                 ))}
                 {rating > 0 && (
                   <span className="text-xs font-extrabold text-[#004ac6] bg-[#004ac6]/5 px-2.5 py-1 rounded-full ml-1.5">
-                    {rating} sao
+                    {rating} {t('roomDetail.stars')}
                   </span>
                 )}
               </div>
@@ -821,13 +824,13 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
 
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-extrabold text-booking-muted uppercase tracking-wider">
-                Nội dung bình luận <span className="text-slate-400 font-normal lowercase">(Tùy chọn)</span>
+                {t('roomDetail.commentLabel')} <span className="text-slate-400 font-normal lowercase">{t('roomDetail.optional')}</span>
               </label>
               <textarea
                 rows={3}
                 value={commentContent}
                 onChange={(e) => setCommentContent(e.target.value)}
-                placeholder="Bạn có thể viết thêm nhận xét chi tiết hoặc bỏ trống nếu chỉ muốn đánh giá số sao..."
+                placeholder={t('roomDetail.commentPlaceholder')}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-sm font-medium focus:bg-white focus:border-[#004ac6] focus:ring-1 focus:ring-[#004ac6]/10 outline-none transition resize-none disabled:cursor-not-allowed"
               />
             </div>
@@ -837,7 +840,7 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
                 type="submit"
                 className="bg-[#004ac6] hover:bg-[#003f9e] text-white font-extrabold text-xs py-3 px-5 rounded-xl transition shadow-md flex items-center gap-1.5"
               >
-                <span>🚀</span> Gửi đánh giá
+                <span>🚀</span> {t('roomDetail.submitReview')}
               </button>
             </div>
           </fieldset>
@@ -847,7 +850,7 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
       {/* Review list */}
       <div className="space-y-6">
         <h3 className="font-extrabold text-booking-text text-sm md:text-base border-b border-slate-100 pb-2">
-          Bình luận &amp; Đánh giá ({reviews.length})
+          {t('roomDetail.commentsAndReviews').replace('{{count}}', String(reviews.length))}
         </h3>
 
         {loading ? (
@@ -860,7 +863,7 @@ export default function RoomReviewsSection({ roomId }: RoomReviewsSectionProps) 
         ) : reviews.length === 0 ? (
           <div className="text-center py-12 border border-dashed border-slate-200 rounded-2xl bg-slate-50">
             <span className="text-3xl">📭</span>
-            <p className="text-sm font-semibold text-booking-muted mt-2">Chưa có đánh giá nào về phòng này.</p>
+            <p className="text-sm font-semibold text-booking-muted mt-2">{t('roomDetail.noReviewsYet')}</p>
           </div>
         ) : (
           <ul className="space-y-0 divide-y divide-slate-100">

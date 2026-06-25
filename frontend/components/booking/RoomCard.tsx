@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { BookingRoom } from '@/data/bookingRooms';
 import { CheckIcon, HeartIcon, MapPinIcon, StarIcon } from './Icons';
+import { useTranslation } from '@/context/LanguageContext';
 
 type RoomCardProps = {
   room: BookingRoom;
@@ -11,6 +12,7 @@ type RoomCardProps = {
 };
 
 export default function RoomCard({ room, featured = false, isFavorited = false, onToggleFavorite }: RoomCardProps) {
+  const { t } = useTranslation();
   return (
     <Link
       href={`/rooms/${room.id}`}
@@ -35,25 +37,25 @@ export default function RoomCard({ room, featured = false, isFavorited = false, 
       <div className="absolute left-4 top-4 flex items-center gap-2 z-10">
         {room.status?.toUpperCase() === 'RENTED' ? (
           <span className="inline-flex items-center gap-1 rounded-md bg-rose-600 px-2 py-1 text-[11px] font-bold uppercase tracking-[0.04em] text-white shadow-sm">
-            🔑 Đã cho thuê
+            {t('roomDetail.roomCardRented')}
           </span>
         ) : null}
         {room.verified ? (
           <span className="inline-flex items-center gap-1 rounded-md bg-booking-teal px-2 py-1 text-[11px] font-bold uppercase tracking-[0.04em] text-white shadow-sm">
             <CheckIcon className="h-3.5 w-3.5" />
-            Đã xác thực
+            {t('roomDetail.roomCardVerified')}
           </span>
         ) : null}
         {room.isNew && room.status?.toUpperCase() !== 'RENTED' ? (
           <span className="rounded-md bg-booking-surface px-2 py-1 text-xs font-bold text-booking-text shadow-sm">
-            Mới
+            {t('roomDetail.roomCardNew')}
           </span>
         ) : null}
       </div>
 
       <button
         type="button"
-        aria-label="Lưu phòng"
+        aria-label={t('roomDetail.roomCardSave')}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -82,7 +84,7 @@ export default function RoomCard({ room, featured = false, isFavorited = false, 
             </h3>
             <p className="shrink-0 text-right font-bold drop-shadow text-sm sm:text-base text-white/95">
               <span>{room.priceLabel}</span>
-              <span className="text-[10px] font-normal text-booking-surface/80">/tháng</span>
+              <span className="text-[10px] font-normal text-booking-surface/80">{t('roomDetail.roomCardPerMonth')}</span>
             </p>
           </div>
 
@@ -96,7 +98,7 @@ export default function RoomCard({ room, featured = false, isFavorited = false, 
             ) : (
               <span className="flex items-center gap-0.5 font-semibold text-booking-surface/85 drop-shadow shrink-0 whitespace-nowrap">
                 <StarIcon className="h-3.5 w-3.5 text-white/50 fill-current" />
-                Chưa có đánh giá
+                {t('roomDetail.roomCardNoRating')}
               </span>
             )}
             <span className="text-white/40 drop-shadow group-hover:hidden">•</span>

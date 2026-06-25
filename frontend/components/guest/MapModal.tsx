@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { roomService, mapBackendRoomToBookingRoom } from '@/services/roomService';
 import type { BookingRoom } from '@/data/bookingRooms';
+import { useTranslation } from '@/context/LanguageContext';
 
 interface MapModalProps {
   onClose: () => void;
@@ -51,6 +52,7 @@ async function geocodeAddressClient(address: string): Promise<[number, number] |
 }
 
 export default function MapModal({ onClose }: MapModalProps) {
+  const { t } = useTranslation();
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -175,7 +177,7 @@ export default function MapModal({ onClose }: MapModalProps) {
 
     userMarkerRef.current = L.marker(pos, { icon })
       .addTo(leafletMapRef.current)
-      .bindPopup(`<strong>${isGps ? '📍 Vị trí GPS của bạn' : '📍 Địa chỉ tìm kiếm'}</strong>`);
+      .bindPopup(`<strong>${isGps ? t('roomDetail.mapGpsPopup') : t('roomDetail.mapSearchPopup')}</strong>`);
 
     // Vòng tròn bán kính
     circleRef.current = L.circle(pos, {
@@ -215,7 +217,7 @@ export default function MapModal({ onClose }: MapModalProps) {
               padding:4px 9px;border-radius:20px;white-space:nowrap;
               box-shadow:0 2px 8px rgba(0,0,0,0.25);border:2px solid white;
               cursor:pointer;transform:translateX(-50%);display:inline-block;
-            ">${priceLabel}/tháng</div>
+            ">${priceLabel}${t('roomDetail.mapPerMonth')}</div>
             <div style="
               width:0;height:0;border-left:6px solid transparent;
               border-right:6px solid transparent;border-top:8px solid #004AC6;
@@ -245,7 +247,7 @@ export default function MapModal({ onClose }: MapModalProps) {
             <a href="/rooms/${room.id}" style="
               display:block;text-align:center;background:#004AC6;color:white;
               padding:7px 12px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none">
-              Xem chi tiết →
+              ${t('roomDetail.mapViewDetail')}
             </a>
           </div>
         `);
@@ -271,14 +273,14 @@ export default function MapModal({ onClose }: MapModalProps) {
         await renderRoomMarkers(items);
         setLoadState('ready');
       } else {
-        setErrorMsg('Không thể tải danh sách phòng.');
+        setErrorMsg(t('roomDetail.mapCannotLoad'));
         setLoadState('error');
       }
     } catch {
-      setErrorMsg('Lỗi kết nối server.');
+      setErrorMsg(t('roomDetail.mapConnError'));
       setLoadState('error');
     }
-  }, [renderRoomMarkers]);
+  }, [renderRoomMarkers, t]);
 
   const radiusKmRef = useRef(radiusKm);
   useEffect(() => {
@@ -368,7 +370,7 @@ export default function MapModal({ onClose }: MapModalProps) {
     setSearchLoading(false);
 
     if (!coords) {
-      setSearchError('Không tìm thấy địa chỉ này. Hãy thử nhập cụ thể hơn.');
+      setSearchError(t('roomDetail.mapAddressNotFound'));
       return;
     }
 
@@ -407,13 +409,13 @@ export default function MapModal({ onClose }: MapModalProps) {
                 <circle cx="12" cy="9" r="2.8" fill="white" />
               </svg>
               <div>
-                <h2 className="text-sm font-bold leading-none text-gray-900">Phòng trọ gần bạn</h2>
+                <h2 className="text-sm font-bold leading-none text-gray-900">{t('roomDetail.mapTitle')}</h2>
                 {loadState === 'ready' && (
-                  <p className="mt-0.5 text-xs text-gray-500">{roomsOnMap.length} phòng trong {radiusKm}km</p>
+                  <p className="mt-0.5 text-xs text-gray-500">{t('roomDetail.mapRoomsInRadius').replace('{{count}}', String(roomsOnMap.length)).replace('{{radius}}', String(radiusKm))}</p>
                 )}
                 {(loadState === 'locating' || loadState === 'fetching') && (
                   <p className="mt-0.5 text-xs text-blue-500 animate-pulse">
-                    {loadState === 'locating' ? 'Đang xác định vị trí…' : 'Đang tải phòng…'}
+                    {loadState === 'locating' ? t('roomDetail.mapLocating') : t('roomDetail.mapFetching')}
                   </p>
                 )}
               </div>
@@ -422,7 +424,7 @@ export default function MapModal({ onClose }: MapModalProps) {
             <div className="flex items-center gap-2">
               {/* Bán kính */}
               <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 px-2 py-1">
-                <span className="text-[11px] text-gray-500 font-medium hidden sm:block">Bán kính:</span>
+                <span className="text-[11px] text-gray-500 font-medium hidden sm:block">{t('roomDetail.mapRadius')}</span>
                 {[2, 5, 10, 20].map((km) => (
                   <button
                     key={km}
@@ -439,7 +441,7 @@ export default function MapModal({ onClose }: MapModalProps) {
               <button
                 onClick={onClose}
                 className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
-                aria-label="Đóng bản đồ"
+                aria-label={t('roomDetail.mapCloseBtn')}
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -465,7 +467,7 @@ export default function MapModal({ onClose }: MapModalProps) {
                 type="text"
                 value={searchInput}
                 onChange={handleSearchInputChange}
-                placeholder="Nhập địa chỉ, quận, phường… (VD: Quận 1, TP.HCM)"
+                placeholder={t('roomDetail.mapSearchPlaceholder')}
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-800 placeholder-gray-400 focus:border-[#004AC6] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#004AC6]/20 transition"
               />
               {/* Đề xuất dropdown */}
@@ -474,10 +476,10 @@ export default function MapModal({ onClose }: MapModalProps) {
                      style={{ zIndex: 9999 }}>
                   <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 border-b border-gray-100">
                     <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                      {suggestions.length} địa điểm
+                      {t('roomDetail.mapPlaces').replace('{{count}}', String(suggestions.length))}
                     </span>
                     {suggestions.length > 3 && (
-                      <span className="text-[10px] text-gray-400">Cuộn để xem thêm</span>
+                      <span className="text-[10px] text-gray-400">{t('roomDetail.mapSuggestScroll')}</span>
                     )}
                   </div>
                   <ul className="divide-y divide-gray-50 overflow-y-auto" style={{ maxHeight: '204px' }}>
@@ -532,7 +534,7 @@ export default function MapModal({ onClose }: MapModalProps) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               )}
-              <span className="hidden sm:inline">Tìm</span>
+              <span className="hidden sm:inline">{t('roomDetail.mapSearchBtn')}</span>
             </button>
 
             {/* Nút về GPS */}
@@ -540,7 +542,7 @@ export default function MapModal({ onClose }: MapModalProps) {
               <button
                 type="button"
                 onClick={handleReturnToGps}
-                title="Về vị trí GPS của tôi"
+                title={t('roomDetail.mapGpsTitle')}
                 className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-blue-50 hover:text-[#1a73e8] hover:border-[#1a73e8]/30 shrink-0"
               >
                 {/* GPS icon */}
@@ -567,7 +569,7 @@ export default function MapModal({ onClose }: MapModalProps) {
           {/* Instruction overlay */}
           {loadState === 'ready' && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 backdrop-blur-sm border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-medium text-gray-500 shadow-sm pointer-events-none whitespace-nowrap">
-              🖱️ Click trực tiếp trên bản đồ để chọn vị trí
+              {t('roomDetail.mapClickHint')}
             </div>
           )}
 
@@ -576,7 +578,7 @@ export default function MapModal({ onClose }: MapModalProps) {
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm z-[1000]">
               <div className="h-10 w-10 rounded-full border-4 border-[#004AC6] border-t-transparent animate-spin mb-3" />
               <p className="text-sm font-semibold text-gray-700">
-                {loadState === 'locating' ? 'Đang xác định vị trí…' : 'Đang tải phòng từ hệ thống…'}
+                {loadState === 'locating' ? t('roomDetail.mapLocating') : t('roomDetail.mapLoadingRooms')}
               </p>
             </div>
           )}
@@ -590,7 +592,7 @@ export default function MapModal({ onClose }: MapModalProps) {
                 onClick={() => fetchNearbyRooms(currentCenter[0], currentCenter[1], radiusKm)}
                 className="mt-3 rounded-xl bg-[#004AC6] px-4 py-2 text-xs font-bold text-white hover:bg-[#003f9e]"
               >
-                Thử lại
+                {t('roomDetail.mapRetry')}
               </button>
             </div>
           )}
@@ -600,12 +602,12 @@ export default function MapModal({ onClose }: MapModalProps) {
             <aside className="hidden w-72 shrink-0 overflow-y-auto border-l border-gray-100 bg-white lg:block xl:w-80">
               <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/60">
                 <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
-                  {roomsOnMap.length} phòng trong {radiusKm}km
+                  {t('roomDetail.mapSidebarRooms').replace('{{count}}', String(roomsOnMap.length)).replace('{{radius}}', String(radiusKm))}
                 </p>
               </div>
               {roomsOnMap.length === 0 ? (
                 <div className="p-6 text-center text-sm text-gray-400 font-medium">
-                  Không có phòng nào có tọa độ trong khu vực này
+                  {t('roomDetail.mapNoGeoRooms')}
                 </div>
               ) : (
                 <ul className="divide-y divide-gray-50">
@@ -648,7 +650,7 @@ export default function MapModal({ onClose }: MapModalProps) {
         {loadState === 'ready' && (
           <div className="shrink-0 border-t border-gray-100 bg-white px-4 py-2 lg:hidden">
             <p className="text-xs text-center text-gray-500 font-medium">
-              📍 {roomsOnMap.length} phòng trong {radiusKm}km — Click marker để xem chi tiết
+              {t('roomDetail.mapFooter').replace('{{count}}', String(roomsOnMap.length)).replace('{{radius}}', String(radiusKm))}
             </p>
           </div>
         )}
