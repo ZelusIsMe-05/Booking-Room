@@ -6,10 +6,12 @@ const db = require('../../config/db');
  */
 async function getAvailableRoomsForAI() {
   return await db('rooms')
+    .join('room_approvals', 'rooms.room_id', 'room_approvals.room_id')
     .leftJoin('room_images', function () {
       this.on('rooms.room_id', '=', 'room_images.room_id').andOnVal('room_images.is_cover', '=', true);
     })
-    .where({ 'rooms.status': 'AVAILABLE' })
+    .where('rooms.status', 'AVAILABLE')
+    .where('room_approvals.approval_status', 'APPROVED')
     .select(
       'rooms.room_id',
       'rooms.title',
