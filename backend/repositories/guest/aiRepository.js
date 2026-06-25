@@ -6,20 +6,29 @@ const db = require('../../config/db');
  */
 async function getAvailableRoomsForAI() {
   return await db('rooms')
-    .where({ status: 'AVAILABLE' })
+    .join('room_approvals', 'rooms.room_id', 'room_approvals.room_id')
+    .leftJoin('room_images', function () {
+      this.on('rooms.room_id', '=', 'room_images.room_id').andOnVal('room_images.is_cover', '=', true);
+    })
+    .where('rooms.status', 'AVAILABLE')
+    .where('room_approvals.approval_status', 'APPROVED')
     .select(
-      'room_id',
-      'title',
-      'room_description',
-      'monthly_rent',
-      'deposit_amount',
-      'electricity_cost',
-      'water_cost',
-      'internet_cost',
-      'service_fee',
-      'detailed_address',
-      'room_type',
-      'average_rating'
+      'rooms.room_id',
+      'rooms.title',
+      'rooms.room_description',
+      'rooms.monthly_rent',
+      'rooms.deposit_amount',
+      'rooms.electricity_cost',
+      'rooms.water_cost',
+      'rooms.internet_cost',
+      'rooms.service_fee',
+      'rooms.detailed_address',
+      'rooms.ward_name',
+      'rooms.district_name',
+      'rooms.province_name',
+      'rooms.room_type',
+      'rooms.average_rating',
+      'room_images.image_url as cover_image'
     )
     .limit(50); // Limit to 50 rooms to avoid exceeding OpenAI token limits
 }
