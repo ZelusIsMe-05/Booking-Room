@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import HostSidebar from '@/components/host/HostSidebar';
+import HostPendingRequests from '@/components/host/HostPendingRequests';
 import {
   statusConfig,
   statusFilterOptions,
@@ -58,6 +59,8 @@ export default function HostTransactionsPage() {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  // Bumped after a deposit approve/reject to refetch the list.
+  const [reloadKey, setReloadKey] = useState(0);
 
   const [exporting, setExporting] = useState(false);
 
@@ -123,7 +126,7 @@ export default function HostTransactionsPage() {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [search, statusFilter, selectedMonth, currentPage]);
+  }, [search, statusFilter, selectedMonth, currentPage, reloadKey]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -220,6 +223,9 @@ export default function HostTransactionsPage() {
               </button>
             </div>
           </div>
+
+          {/* ── Pending Requests (đồng ý / từ chối đơn đặt cọc) ───────── */}
+          <HostPendingRequests onDecision={() => setReloadKey((k) => k + 1)} />
 
           {/* ── Filter Bar ────────────────────────────────────────────── */}
           <div className="flex items-center gap-4 rounded-xl border border-[#C3C6D7] bg-white px-4 py-[18px] shadow-[0_1px_2px_rgba(0,0,0,0.05)]">

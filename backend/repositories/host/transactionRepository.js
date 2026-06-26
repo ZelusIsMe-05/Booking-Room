@@ -11,9 +11,11 @@ const db = require('../../config/db');
  * Áp bộ lọc theo UI status. Trạng thái phản ánh CẢ vòng đời đơn cọc lẫn việc admin
  * đã giải ngân hay chưa (t.is_disbursed):
  *  - completed  : chủ trọ đã duyệt (ACCEPTED) VÀ admin đã giải ngân
- *  - awaiting   : chủ trọ đã duyệt (ACCEPTED) nhưng admin CHƯA giải ngân → "Đang phê duyệt"
- *  - processing : đang chờ thanh toán / chờ chủ trọ duyệt (PROCESSING, CONFIRMED)
- *  - cancelled  : bị từ chối / hủy (REJECTED, CANCELLED, EXPIRED)
+ *  - awaiting   : chủ trọ đã duyệt (ACCEPTED) nhưng admin CHƯA giải ngân → "Chờ giải ngân"
+ *  - pending    : đã cọc nhưng chủ trọ CHƯA đồng ý (CONFIRMED) → "Chờ xác nhận"
+ *  - processing : đang chờ thanh toán cọc (PROCESSING) → "Đang xử lý"
+ *  - rejected   : chủ trọ từ chối đơn (REJECTED) → "Đã từ chối"
+ *  - cancelled  : khách hủy / đơn hết hạn (CANCELLED, EXPIRED) → "Đã hủy"
  */
 function applyStatusFilter(q, status) {
   if (!status) return;
@@ -23,10 +25,14 @@ function applyStatusFilter(q, status) {
     q.where('d.status', 'ACCEPTED').andWhere((b) => {
       b.where('t.is_disbursed', false).orWhereNull('t.is_disbursed');
     });
+  } else if (status === 'pending') {
+    q.where('d.status', 'CONFIRMED');
   } else if (status === 'processing') {
-    q.whereIn('d.status', ['PROCESSING', 'CONFIRMED']);
+    q.where('d.status', 'PROCESSING');
+  } else if (status === 'rejected') {
+    q.where('d.status', 'REJECTED');
   } else if (status === 'cancelled') {
-    q.whereIn('d.status', ['CANCELLED', 'REJECTED', 'EXPIRED']);
+    q.whereIn('d.status', ['CANCELLED', 'EXPIRED']);
   }
 }
 

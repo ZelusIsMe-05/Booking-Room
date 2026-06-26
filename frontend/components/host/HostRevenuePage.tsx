@@ -209,7 +209,7 @@ function RevenueLineChart({ trend }: { trend: RevenueTrendPoint[] }) {
 }
 
 function SettlementStatusBadge({ status }: { status: RevenueSettlement['status'] }) {
-  const label = status === 'completed' ? 'Đã hoàn tất' : 'Đang đối soát';
+  const label = status === 'completed' ? 'Đã hoàn tất' : 'Chờ giải ngân';
   const className =
     status === 'completed'
       ? 'bg-[rgba(134,242,228,0.2)] text-[#006A61]'

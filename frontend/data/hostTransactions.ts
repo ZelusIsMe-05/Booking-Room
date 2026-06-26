@@ -6,7 +6,13 @@
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type TransactionStatus = 'completed' | 'awaiting' | 'cancelled' | 'pending' | 'processing';
+export type TransactionStatus =
+  | 'completed'
+  | 'awaiting'
+  | 'cancelled'   // khách chủ động hủy thanh toán / đơn hết hạn
+  | 'rejected'    // chủ phòng từ chối đơn
+  | 'pending'
+  | 'processing';
 
 export interface Transaction {
   id: string;
@@ -139,25 +145,33 @@ export const statusConfig: Record<TransactionStatus, StatusConfig> = {
     textClass: 'text-[#006A61]',
   },
   awaiting: {
-    label: 'Đang phê duyệt',
-    bgClass: 'bg-[rgba(148,55,0,0.1)]',
-    textClass: 'text-[#943700]',
+    // ACCEPTED nhưng admin chưa giải ngân.
+    label: 'Chờ giải ngân',
+    bgClass: 'bg-[rgba(0,74,198,0.1)]',
+    textClass: 'text-[#004AC6]',
   },
-  cancelled: {
+  rejected: {
+    // Chủ phòng từ chối đơn.
     label: 'Đã từ chối',
     bgClass: 'bg-[rgba(186,26,26,0.1)]',
     textClass: 'text-[#BA1A1A]',
   },
+  cancelled: {
+    // Khách chủ động hủy thanh toán / đơn hết hạn.
+    label: 'Đã hủy',
+    bgClass: 'bg-[rgba(115,118,134,0.12)]',
+    textClass: 'text-[#737686]',
+  },
   pending: {
-    label: 'CHỜ DUYỆT',
+    // Đã cọc nhưng chủ phòng chưa đồng ý.
+    label: 'Chờ xác nhận',
     bgClass: 'bg-[rgba(148,55,0,0.1)]',
     textClass: 'text-[#943700]',
-    uppercase: true,
   },
   processing: {
     label: 'Đang xử lý',
-    bgClass: 'bg-[rgba(0,74,198,0.1)]',
-    textClass: 'text-[#004AC6]',
+    bgClass: 'bg-[rgba(103,80,164,0.1)]',
+    textClass: 'text-[#6750A4]',
   },
 };
 
@@ -165,10 +179,12 @@ export const statusConfig: Record<TransactionStatus, StatusConfig> = {
 
 export const statusFilterOptions: Array<{ value: TransactionStatus | 'all'; label: string }> = [
   { value: 'all', label: 'Tất cả' },
-  { value: 'completed', label: 'Đã hoàn tất' },
-  { value: 'awaiting', label: 'Đang phê duyệt' },
   { value: 'processing', label: 'Đang xử lý' },
-  { value: 'cancelled', label: 'Đã từ chối' },
+  { value: 'pending', label: 'Chờ xác nhận' },
+  { value: 'awaiting', label: 'Chờ giải ngân' },
+  { value: 'completed', label: 'Đã hoàn tất' },
+  { value: 'rejected', label: 'Đã từ chối' },
+  { value: 'cancelled', label: 'Đã hủy' },
 ];
 
 export const ITEMS_PER_PAGE = 4;

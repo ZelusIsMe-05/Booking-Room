@@ -14,10 +14,11 @@ function formatTransactionVND(amount: number): string {
 // Status badge colours, matching the tone used across the Host area.
 const STATUS_BADGE: Record<string, string> = {
   completed: 'bg-[#86F2E4] text-[#006F66]',
-  awaiting: 'bg-[#FFDDB0] text-[#943700]',
-  pending: 'bg-[#FFDDB0] text-[#943700]',
-  processing: 'bg-[#D6E4FF] text-[#004AC6]',
-  cancelled: 'bg-[#FFDAD6] text-[#BA1A1A]',
+  awaiting: 'bg-[#D6E4FF] text-[#004AC6]',   // Chờ giải ngân (chờ admin)
+  pending: 'bg-[#FFDDB0] text-[#943700]',    // Chờ xác nhận (chờ chủ phòng)
+  processing: 'bg-[#E5DEFF] text-[#6750A4]', // Đang xử lý thanh toán
+  rejected: 'bg-[#FFDAD6] text-[#BA1A1A]',   // Chủ phòng từ chối đơn
+  cancelled: 'bg-[#E1E2ED] text-[#737686]',  // Khách hủy / đơn hết hạn
 };
 
 export default function HostTransactionDetailPage({ transactionId }: { transactionId: string }) {
