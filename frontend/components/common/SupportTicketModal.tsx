@@ -18,6 +18,7 @@ interface SupportTicket {
   detailed_description: string;
   evidence_image_url?: string;
   status: string;
+  admin_response?: string;
   created_at: string;
   updated_at: string;
 }
@@ -424,6 +425,23 @@ export default function SupportTicketModal({ isOpen, onClose }: SupportTicketMod
                             className="max-h-64 object-contain rounded-lg hover:scale-102 transition-transform duration-200 shadow-sm"
                           />
                         </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Admin response */}
+                  <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm space-y-3">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                      <span className="w-1.5 h-3 bg-[#0052CC] rounded-full" />
+                      Phản hồi từ Quản trị viên
+                    </h4>
+                    {selectedTicket.admin_response ? (
+                      <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 text-sm text-blue-800 whitespace-pre-wrap leading-relaxed">
+                        {selectedTicket.admin_response}
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100 text-sm text-gray-400 italic">
+                        Chưa có phản hồi từ quản trị viên.
                       </div>
                     )}
                   </div>

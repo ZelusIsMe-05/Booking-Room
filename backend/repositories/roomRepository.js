@@ -99,7 +99,20 @@ function applyPublicRoomFilters(q, filters = {}) {
   }
 
   if (filters.location) {
-    const locs = filters.location.split('|').map(l => l.trim()).filter(Boolean);
+    // Strip Vietnamese administrative prefixes so "Thành phố Hà Nội" matches "Hà Nội" in DB
+    const ADMIN_PREFIXES = /^(Thành phố|Tỉnh|Quận|Huyện|Thị xã|Thị trấn|Phường|Xã)\s+/i;
+    const normalizeLocation = (loc) => loc.replace(ADMIN_PREFIXES, '').trim();
+
+    const locs = filters.location
+      .split('|')
+      .map(l => l.trim())
+      .filter(Boolean)
+      .flatMap(loc => {
+        const normalized = normalizeLocation(loc);
+        // Include both original and normalized to handle all cases
+        return normalized !== loc ? [loc, normalized] : [loc];
+      });
+
     q.where(function () {
       locs.forEach(loc => {
         this.orWhere(function() {

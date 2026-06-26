@@ -40,6 +40,8 @@ function selectReportFields(query) {
     'violation_reports.reason',
     'violation_reports.resolution_status',
     'violation_reports.evidence_image_url',
+    'violation_reports.admin_response_tenant',
+    'violation_reports.admin_response_landlord',
     'violation_reports.created_at',
     // Tenant (reporter) info
     'tenant_user.full_name as tenant_full_name',
@@ -149,9 +151,16 @@ async function updateReportStatus({ reportId, status, adminResponseTenant, admin
     throw new AppError('NOT_FOUND', 'Không tìm thấy báo cáo vi phạm.', 404);
   }
 
+  const trimmedTenantResponse = adminResponseTenant ? String(adminResponseTenant).trim() : '';
+  const trimmedLandlordResponse = adminResponseLandlord ? String(adminResponseLandlord).trim() : '';
+
   const [updated] = await db('violation_reports')
     .where({ report_id: reportId })
-    .update({ resolution_status: upperStatus })
+    .update({ 
+      resolution_status: upperStatus,
+      admin_response_tenant: trimmedTenantResponse || null,
+      admin_response_landlord: trimmedLandlordResponse || null
+    })
     .returning('*');
 
   // Log admin action
@@ -161,9 +170,6 @@ async function updateReportStatus({ reportId, status, adminResponseTenant, admin
     ipAddress: actor.ipAddress,
     userAgent: actor.userAgent,
   });
-
-  const trimmedTenantResponse = adminResponseTenant ? String(adminResponseTenant).trim() : '';
-  const trimmedLandlordResponse = adminResponseLandlord ? String(adminResponseLandlord).trim() : '';
 
   // Only notify when the report is completely resolved or dismissed
   if (upperStatus === 'RESOLVED' || upperStatus === 'DISMISSED') {
@@ -267,6 +273,8 @@ function mapReport(row) {
     reason: row.reason,
     resolutionStatus: row.resolution_status,
     evidenceImageUrl: row.evidence_image_url,
+    adminResponseTenant: row.admin_response_tenant,
+    adminResponseLandlord: row.admin_response_landlord,
     createdAt: row.created_at,
     reporter: {
       tenantId: row.tenant_id,
@@ -299,6 +307,8 @@ function mapReportRow(row) {
     reason: row.reason,
     resolutionStatus: row.resolution_status,
     evidenceImageUrl: row.evidence_image_url,
+    adminResponseTenant: row.admin_response_tenant,
+    adminResponseLandlord: row.admin_response_landlord,
     createdAt: row.created_at,
     tenantId: row.tenant_id,
     roomId: row.room_id,

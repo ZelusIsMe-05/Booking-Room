@@ -253,6 +253,27 @@ export default function ComplaintsPage() {
                 <div className="p-6 w-full md:w-72 bg-slate-50 flex flex-col justify-center gap-3">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t.admin.complaintsPage.actionHandling}</p>
 
+                  {['RESOLVED', 'DISMISSED'].includes(report.resolutionStatus) && (report.adminResponseTenant || report.adminResponseLandlord) && (
+                    <div className="space-y-2 bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+                      {report.adminResponseTenant && (
+                        <div>
+                          <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                            {t.admin.complaintsPage.tenantFeedbackLabel} (Đã gửi)
+                          </span>
+                          <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">{report.adminResponseTenant}</p>
+                        </div>
+                      )}
+                      {report.adminResponseLandlord && (
+                        <div className={report.adminResponseTenant ? "mt-2 pt-2 border-t border-slate-100" : ""}>
+                          <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                            {t.admin.complaintsPage.hostFeedbackLabel} (Đã gửi)
+                          </span>
+                          <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">{report.adminResponseLandlord}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {['PENDING', 'PROCESSING'].includes(report.resolutionStatus) && (
                     <div className="space-y-2 bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
                       <div>
@@ -260,7 +281,7 @@ export default function ComplaintsPage() {
                           {t.admin.complaintsPage.tenantFeedbackLabel}
                         </label>
                         <textarea
-                          value={adminResponsesTenant[report.reportId] || ''}
+                          value={adminResponsesTenant[report.reportId] ?? report.adminResponseTenant ?? ''}
                           onChange={(e) => setAdminResponsesTenant(prev => ({ ...prev, [report.reportId]: e.target.value }))}
                           placeholder={t.admin.complaintsPage.tenantFeedbackPlaceholder}
                           rows={1}
@@ -272,7 +293,7 @@ export default function ComplaintsPage() {
                           {t.admin.complaintsPage.hostFeedbackLabel}
                         </label>
                         <textarea
-                          value={adminResponsesLandlord[report.reportId] || ''}
+                          value={adminResponsesLandlord[report.reportId] ?? report.adminResponseLandlord ?? ''}
                           onChange={(e) => setAdminResponsesLandlord(prev => ({ ...prev, [report.reportId]: e.target.value }))}
                           placeholder={t.admin.complaintsPage.hostFeedbackPlaceholder}
                           rows={1}

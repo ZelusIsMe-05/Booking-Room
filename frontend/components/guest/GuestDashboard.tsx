@@ -140,7 +140,7 @@ export default function GuestDashboard() {
   }, [authLoading, fetchFavorites]);
 
   return (
-    <div className="min-h-screen bg-booking-surface text-booking-text">
+    <div className="min-h-screen bg-booking-surface text-booking-text pt-16">
       <BookingHeader />
 
       <main>

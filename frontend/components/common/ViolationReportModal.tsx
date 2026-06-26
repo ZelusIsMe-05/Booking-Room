@@ -20,6 +20,8 @@ interface ViolationReport {
   reason: string;
   evidence_image_url?: string;
   resolution_status: string;
+  admin_response_tenant?: string;
+  admin_response_landlord?: string;
   created_at: string;
 }
 
@@ -546,6 +548,23 @@ export default function ViolationReportModal({ isOpen, onClose }: ViolationRepor
                             className="max-h-64 object-contain rounded-lg hover:scale-102 transition-transform duration-200 shadow-sm"
                           />
                         </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Admin response */}
+                  <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm space-y-3">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                      <span className="w-1.5 h-3 bg-orange-500 rounded-full" />
+                      Phản hồi từ Quản trị viên
+                    </h4>
+                    {selectedReport.admin_response_tenant ? (
+                      <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100 text-sm text-orange-850 whitespace-pre-wrap leading-relaxed">
+                        {selectedReport.admin_response_tenant}
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100 text-sm text-gray-400 italic">
+                        Chưa có phản hồi từ quản trị viên.
                       </div>
                     )}
                   </div>

@@ -35,6 +35,7 @@ function selectTicketFields(query) {
     'support_tickets.detailed_description',
     'support_tickets.evidence_image_url',
     'support_tickets.status',
+    'support_tickets.admin_response',
     'support_tickets.created_at',
     'support_tickets.updated_at',
     'users.full_name as user_full_name',
@@ -132,10 +133,13 @@ async function updateTicketStatus({ ticketId, status, adminResponse, actor }) {
     throw new AppError('NOT_FOUND', 'Không tìm thấy yêu cầu hỗ trợ.', 404);
   }
 
+  const trimmedResponse = adminResponse ? String(adminResponse).trim() : '';
+
   const [updated] = await db('support_tickets')
     .where({ ticket_id: ticketId })
     .update({
       status: upperStatus,
+      admin_response: trimmedResponse || null,
       updated_at: db.fn.now(),
     })
     .returning('*');
@@ -149,7 +153,6 @@ async function updateTicketStatus({ ticketId, status, adminResponse, actor }) {
   });
 
   // Notify the user
-  const trimmedResponse = adminResponse ? String(adminResponse).trim() : '';
   const notificationRepository = require('../../repositories/guest/notificationRepository');
   const statusLabels = { OPEN: 'Chờ xử lý', IN_PROGRESS: 'Đang xử lý', CLOSED: 'Đã giải quyết' };
   let notifContent = `Yêu cầu hỗ trợ của bạn (Mã: ${ticketId.split('-')[0]}) đã được chuyển sang trạng thái: ${statusLabels[upperStatus] || upperStatus}.`;
@@ -194,6 +197,7 @@ function mapTicket(row) {
     detailedDescription: row.detailed_description,
     evidenceImageUrl: row.evidence_image_url,
     status: row.status,
+    adminResponse: row.admin_response,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     user: {
@@ -215,6 +219,7 @@ function mapTicketRow(row) {
     detailedDescription: row.detailed_description,
     evidenceImageUrl: row.evidence_image_url,
     status: row.status,
+    adminResponse: row.admin_response,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     userId: row.user_id,

@@ -246,6 +246,17 @@ export default function SupportPage() {
                       <div className="w-full md:w-64 bg-white border border-slate-200 rounded-xl p-5 shadow-sm h-fit">
                         <h4 className="text-sm font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">{t.admin.supportPage.updateStatusTitle}</h4>
 
+                        {ticket.status === 'CLOSED' && (ticket.adminResponse || adminResponses[ticket.ticketId]) && (
+                          <div className="mb-4 bg-slate-50 border border-slate-200 p-3 rounded-lg">
+                            <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                              {t.admin.supportPage.adminReplyLabel} (Đã gửi)
+                            </span>
+                            <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
+                              {adminResponses[ticket.ticketId] ?? ticket.adminResponse}
+                            </p>
+                          </div>
+                        )}
+
                         {ticket.status !== 'CLOSED' && (
                           <div className="mb-4">
                             <label className="text-xs font-medium text-slate-600 mb-1 flex items-center gap-1">
@@ -253,7 +264,7 @@ export default function SupportPage() {
                               {t.admin.supportPage.adminReplyLabel}
                             </label>
                             <textarea
-                              value={adminResponses[ticket.ticketId] || ''}
+                              value={adminResponses[ticket.ticketId] ?? ticket.adminResponse ?? ''}
                               onChange={(e) => setAdminResponses(prev => ({...prev, [ticket.ticketId]: e.target.value}))}
                               placeholder={t.admin.supportPage.adminReplyPlaceholder}
                               rows={2}

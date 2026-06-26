@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { MapPinIcon, SearchIcon, WalletIcon } from './Icons';
 import { vietnamAdministrativeUnits } from '@/utils/vietnamAdministrativeUnits';
@@ -79,6 +79,7 @@ function useAddressSearch(query: string) {
 
 function SearchBentoInner({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { t } = useTranslation();
 
@@ -144,7 +145,14 @@ function SearchBentoInner({ compact = false }: { compact?: boolean }) {
       params.set('nearLat', nearLat);
       params.set('nearLng', nearLng);
     }
-    router.push(`/rooms${params.toString() ? `?${params.toString()}` : ''}`);
+    const target = `/rooms${params.toString() ? `?${params.toString()}` : ''}`;
+    // Nếu không có bộ lọc nào và đang ở /rooms → dùng replace để force re-render
+    const hasNoFilter = !params.toString();
+    if (hasNoFilter && pathname === '/rooms') {
+      router.replace('/rooms');
+    } else {
+      router.push(target);
+    }
   }
 
   // Filter provinces for the admin tab based on search query
