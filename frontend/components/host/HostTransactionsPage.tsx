@@ -13,6 +13,7 @@ import {
 import {
   hostTransactionService,
   type HostTransactionItem,
+  type HostTransactionSummary,
 } from '@/services/hostTransactionService';
 import { useTranslation } from '@/context/LanguageContext';
 
@@ -27,6 +28,36 @@ function dateFromForRange(key: string): string | undefined {
   if (key === 'last6Months') return new Date(now.getFullYear(), now.getMonth() - 6, 1).toISOString();
   if (key === 'thisYear') return new Date(now.getFullYear(), 0, 1).toISOString();
   return undefined;
+}
+
+// ─── Summary Card ─────────────────────────────────────────────────────────────
+
+interface SummaryCardProps {
+  label: string;
+  value: string;
+  sub: React.ReactNode;
+  icon: React.ReactNode;
+  iconBg: string;
+}
+
+function SummaryCard({ label, value, sub, icon, iconBg }: SummaryCardProps) {
+  return (
+    <div className="flex flex-1 items-center justify-between rounded-xl border border-[#C3C6D7] bg-white p-6 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-bold tracking-[0.6px] text-[#434655] uppercase">
+          {label}
+        </span>
+        <span className="text-2xl font-semibold leading-8 text-[#191B23]">{value}</span>
+        <div className="flex items-center gap-1 text-base leading-6">{sub}</div>
+      </div>
+      <div
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full"
+        style={{ background: iconBg }}
+      >
+        {icon}
+      </div>
+    </div>
+  );
 }
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
@@ -67,6 +98,7 @@ export default function HostTransactionsPage() {
   const [items, setItems] = useState<HostTransactionItem[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [summary, setSummary] = useState<HostTransactionSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [exporting, setExporting] = useState(false);
@@ -98,6 +130,20 @@ export default function HostTransactionsPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [search, statusFilter, selectedMonth]);
+
+  // Fetch the summary once.
+  useEffect(() => {
+    let cancelled = false;
+    hostTransactionService
+      .getSummary()
+      .then((res) => {
+        if (!cancelled && res.data) setSummary(res.data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Fetch the list (server-side filtered + paginated); debounce the search box.
   useEffect(() => {
