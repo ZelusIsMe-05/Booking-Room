@@ -26,7 +26,7 @@ const EMPTY_SUMMARY: RevenueSummary = {
   pendingSettlement: 0,
   completedOrders: 0,
   growthRate: 0,
-  statusBreakdown: { completed: 0, processing: 0, failed: 0 },
+  statusBreakdown: { completed: 0, awaiting: 0, processing: 0, rejected: 0, cancelled: 0 },
 };
 
 interface KpiCardProps {
@@ -211,9 +211,11 @@ function RevenueLineChart({ trend, t }: { trend: RevenueTrendPoint[]; t: any }) 
 
 function StatusPieChart({ breakdown, t }: { breakdown: RevenueSummary['statusBreakdown']; t: any }) {
   const slices = [
-    { key: 'completed', label: t('host.revenue.success'), value: breakdown.completed, color: '#006A61' },
-    { key: 'processing', label: t('host.revenue.processing'), value: breakdown.processing, color: '#943700' },
-    { key: 'failed', label: t('host.revenue.failed'), value: breakdown.failed, color: '#BA1A1A' },
+    { key: 'processing', label: t('host.revenue.pieProcessing'), value: breakdown.processing, color: '#6750A4' },
+    { key: 'awaiting', label: t('host.revenue.pieAwaiting'), value: breakdown.awaiting, color: '#004AC6' },
+    { key: 'completed', label: t('host.revenue.pieCompleted'), value: breakdown.completed, color: '#006A61' },
+    { key: 'rejected', label: t('host.revenue.pieRejected'), value: breakdown.rejected, color: '#BA1A1A' },
+    { key: 'cancelled', label: t('host.revenue.pieCancelled'), value: breakdown.cancelled, color: '#737686' },
   ];
   const total = slices.reduce((sum, s) => sum + s.value, 0);
 

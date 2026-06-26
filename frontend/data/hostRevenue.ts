@@ -7,9 +7,16 @@
 export type RevenueRange = 'week' | 'month' | 'quarter' | 'year';
 
 export interface RevenueStatusBreakdown {
+  /** ACCEPTED & đã giải ngân */
   completed: number;
+  /** ACCEPTED & chưa giải ngân */
+  awaiting: number;
+  /** PROCESSING / CONFIRMED (chưa được duyệt) */
   processing: number;
-  failed: number;
+  /** REJECTED (chủ phòng từ chối) */
+  rejected: number;
+  /** CANCELLED / EXPIRED (khách hủy / hết hạn) */
+  cancelled: number;
 }
 
 export interface RevenueSummary {

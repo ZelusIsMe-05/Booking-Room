@@ -216,7 +216,7 @@ async function exportSettlements(landlordId, query = {}) {
       gross,
       fee,
       net,
-      settled ? 'Đã giải ngân' : 'Đang đối soát',
+      settled ? 'Đã giải ngân' : 'Chờ giải ngân',
     ];
   });
 

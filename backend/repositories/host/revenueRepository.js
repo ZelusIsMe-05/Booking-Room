@@ -79,23 +79,37 @@ async function allTimeTotals(landlordId) {
 
 /**
  * Count of deposits by outcome within a window (dated by created_at), for the
- * status-breakdown pie chart: completed / processing / failed.
+ * status-breakdown pie chart. Phân loại đầy đủ 5 trạng thái, nhất quán với màn
+ * "Giao dịch" (deriveStatus):
+ *  - completed  : ACCEPTED & đã giải ngân
+ *  - awaiting   : ACCEPTED & chưa giải ngân (chờ giải ngân)
+ *  - processing : PROCESSING / CONFIRMED (đang thanh toán / chưa được duyệt)
+ *  - rejected   : REJECTED (chủ phòng từ chối)
+ *  - cancelled  : CANCELLED / EXPIRED (khách hủy / hết hạn)
  */
 async function statusBreakdown(landlordId, { start, end }) {
   const row = await db('deposits as d')
+    // Giao dịch thanh toán thành công (nếu có) để biết đã giải ngân hay chưa.
+    .leftJoin('transactions as t', function () {
+      this.on('t.deposit_id', 'd.deposit_id').andOnVal('t.status', '=', 'SUCCESS');
+    })
     .where('d.landlord_id', landlordId)
     .andWhere('d.created_at', '>=', start)
     .andWhere('d.created_at', '<', end)
     .select(
-      db.raw(`COUNT(*) FILTER (WHERE d.status = 'ACCEPTED')::int as completed`),
-      db.raw(`COUNT(*) FILTER (WHERE d.status IN ('PROCESSING','CONFIRMED'))::int as processing`),
-      db.raw(`COUNT(*) FILTER (WHERE d.status IN ('REJECTED','CANCELLED','EXPIRED'))::int as failed`),
+      db.raw(`COUNT(DISTINCT d.deposit_id) FILTER (WHERE d.status = 'ACCEPTED' AND t.is_disbursed = true)::int as completed`),
+      db.raw(`COUNT(DISTINCT d.deposit_id) FILTER (WHERE d.status = 'ACCEPTED' AND (t.is_disbursed = false OR t.is_disbursed IS NULL))::int as awaiting`),
+      db.raw(`COUNT(DISTINCT d.deposit_id) FILTER (WHERE d.status IN ('PROCESSING','CONFIRMED'))::int as processing`),
+      db.raw(`COUNT(DISTINCT d.deposit_id) FILTER (WHERE d.status = 'REJECTED')::int as rejected`),
+      db.raw(`COUNT(DISTINCT d.deposit_id) FILTER (WHERE d.status IN ('CANCELLED','EXPIRED'))::int as cancelled`),
     )
     .first();
   return {
     completed: Number(row?.completed) || 0,
+    awaiting: Number(row?.awaiting) || 0,
     processing: Number(row?.processing) || 0,
-    failed: Number(row?.failed) || 0,
+    rejected: Number(row?.rejected) || 0,
+    cancelled: Number(row?.cancelled) || 0,
   };
 }
 
