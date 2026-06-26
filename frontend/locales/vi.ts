@@ -48,7 +48,10 @@ export const vi = {
       statusCancelled: "Đã hủy giao dịch",
       cancelSuccess: "Đã hủy giao dịch đặt cọc thành công!",
       cancelFail: "Hủy giao dịch thất bại.",
-      userCancel: "Người dùng chủ động hủy"
+      userCancel: "Người dùng chủ động hủy",
+      tabMyDeposits: "Đơn tôi đặt",
+      tabHostDeposits: "Đơn phòng của tôi",
+      statusPending: "Chờ xác nhận"
     },
     support: {
       title: "Gửi yêu cầu hỗ trợ",
@@ -134,6 +137,36 @@ export const vi = {
       formErrReason: "Vui lòng nhập lý do khiếu nại.",
       formSuccess: "Đã gửi đơn khiếu nại thành công! Chúng tôi sẽ xử lý nghiêm khắc.",
       viewHistoryLink: "Xem lịch sử →"
+    },
+    profile: {
+      title: "Thông tin cá nhân",
+      roleAdmin: "Quản trị viên",
+      roleHost: "Chủ nhà",
+      roleTenant: "Người thuê phòng",
+      removeAvatar: "Xóa ảnh đại diện",
+      fullName: "Họ và tên",
+      email: "Địa chỉ Email",
+      username: "Tên đăng nhập",
+      cannotEdit: "Không thể chỉnh sửa",
+      phone: "Số điện thoại",
+      gender: "Giới tính",
+      male: "Nam",
+      female: "Nữ",
+      other: "Khác",
+      dob: "Ngày sinh",
+      address: "Địa chỉ liên hệ",
+      cancel: "Hủy bỏ",
+      saveChanges: "Lưu thay đổi",
+      saving: "Đang lưu..."
+    },
+    changePassword: {
+      title: "Đổi mật khẩu",
+      currentPass: "Mật khẩu hiện tại",
+      newPass: "Mật khẩu mới",
+      confirmPass: "Xác nhận mật khẩu mới",
+      cancel: "Hủy bỏ",
+      saveChanges: "Lưu thay đổi",
+      saving: "Đang lưu..."
     }
   },
   rooms: {
@@ -175,59 +208,6 @@ export const vi = {
     clearSelection: "Xóa lựa chọn",
     cancel: "Hủy",
     apply: "Áp dụng"
-  },
-  modals: {
-    profile: {
-      title: "Thông tin cá nhân",
-      roleAdmin: "Quản trị viên",
-      roleHost: "Chủ nhà",
-      roleTenant: "Người thuê phòng",
-      removeAvatar: "Xóa ảnh đại diện",
-      fullName: "Họ và tên",
-      email: "Địa chỉ Email",
-      username: "Tên đăng nhập",
-      cannotEdit: "Không thể chỉnh sửa",
-      phone: "Số điện thoại",
-      gender: "Giới tính",
-      male: "Nam",
-      female: "Nữ",
-      other: "Khác",
-      dob: "Ngày sinh",
-      address: "Địa chỉ liên hệ",
-      cancel: "Hủy bỏ",
-      saveChanges: "Lưu thay đổi",
-      saving: "Đang lưu..."
-    },
-    changePassword: {
-      title: "Đổi mật khẩu",
-      currentPass: "Mật khẩu hiện tại",
-      newPass: "Mật khẩu mới",
-      confirmPass: "Xác nhận mật khẩu mới",
-      cancel: "Hủy bỏ",
-      saveChanges: "Lưu thay đổi",
-      saving: "Đang lưu..."
-    },
-    deposits: {
-      title: "Quản lý Đơn đặt cọc",
-      tabMyDeposits: "Đơn tôi đặt",
-      tabHostDeposits: "Đơn phòng của tôi",
-      statusPending: "Chờ xác nhận",
-      statusAccepted: "Đã xác nhận",
-      statusRejected: "Đã từ chối",
-      statusCancelled: "Đã hủy",
-      noData: "Không có đơn đặt cọc nào.",
-      close: "Đóng"
-    },
-    support: {
-      title: "Đơn hỗ trợ",
-      noData: "Chưa có đơn hỗ trợ nào.",
-      close: "Đóng"
-    },
-    violation: {
-      title: "Đơn khiếu nại",
-      noData: "Chưa có đơn khiếu nại nào.",
-      close: "Đóng"
-    }
   },
   host: {
     sidebar: {

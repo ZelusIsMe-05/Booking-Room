@@ -48,7 +48,10 @@ export const en = {
       statusCancelled: "Cancelled",
       cancelSuccess: "Deposit transaction cancelled successfully!",
       cancelFail: "Failed to cancel transaction.",
-      userCancel: "Cancelled by user"
+      userCancel: "Cancelled by user",
+      tabMyDeposits: "My Requests",
+      tabHostDeposits: "My Room Requests",
+      statusPending: "Pending"
     },
     support: {
       title: "Submit Support Ticket",
@@ -134,6 +137,36 @@ export const en = {
       formErrReason: "Please enter a reason for reporting.",
       formSuccess: "Violation report submitted successfully! We will handle it strictly.",
       viewHistoryLink: "View history →"
+    },
+    profile: {
+      title: "Personal Information",
+      roleAdmin: "Administrator",
+      roleHost: "Host",
+      roleTenant: "Tenant",
+      removeAvatar: "Remove Avatar",
+      fullName: "Full Name",
+      email: "Email Address",
+      username: "Username",
+      cannotEdit: "Cannot be edited",
+      phone: "Phone Number",
+      gender: "Gender",
+      male: "Male",
+      female: "Female",
+      other: "Other",
+      dob: "Date of Birth",
+      address: "Address",
+      cancel: "Cancel",
+      saveChanges: "Save Changes",
+      saving: "Saving..."
+    },
+    changePassword: {
+      title: "Change Password",
+      currentPass: "Current Password",
+      newPass: "New Password",
+      confirmPass: "Confirm New Password",
+      cancel: "Cancel",
+      saveChanges: "Save Changes",
+      saving: "Saving..."
     }
   },
   rooms: {
@@ -175,59 +208,6 @@ export const en = {
     clearSelection: "Clear selection",
     cancel: "Cancel",
     apply: "Apply"
-  },
-  modals: {
-    profile: {
-      title: "Personal Information",
-      roleAdmin: "Administrator",
-      roleHost: "Host",
-      roleTenant: "Tenant",
-      removeAvatar: "Remove Avatar",
-      fullName: "Full Name",
-      email: "Email Address",
-      username: "Username",
-      cannotEdit: "Cannot be edited",
-      phone: "Phone Number",
-      gender: "Gender",
-      male: "Male",
-      female: "Female",
-      other: "Other",
-      dob: "Date of Birth",
-      address: "Address",
-      cancel: "Cancel",
-      saveChanges: "Save Changes",
-      saving: "Saving..."
-    },
-    changePassword: {
-      title: "Change Password",
-      currentPass: "Current Password",
-      newPass: "New Password",
-      confirmPass: "Confirm New Password",
-      cancel: "Cancel",
-      saveChanges: "Save Changes",
-      saving: "Saving..."
-    },
-    deposits: {
-      title: "Deposit Requests Management",
-      tabMyDeposits: "My Requests",
-      tabHostDeposits: "My Room Requests",
-      statusPending: "Pending",
-      statusAccepted: "Accepted",
-      statusRejected: "Rejected",
-      statusCancelled: "Cancelled",
-      noData: "No deposit requests found.",
-      close: "Close"
-    },
-    support: {
-      title: "Support Tickets",
-      noData: "No support tickets found.",
-      close: "Close"
-    },
-    violation: {
-      title: "Violation Reports",
-      noData: "No violation reports found.",
-      close: "Close"
-    }
   },
   host: {
     sidebar: {
