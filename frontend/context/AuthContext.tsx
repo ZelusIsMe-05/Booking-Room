@@ -36,31 +36,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error: any) {
       console.error('Failed to fetch user profile:', error);
-      // If error (meaning refresh token is also expired or invalid), clean credentials
-      clearStoredCredentials();
-      setUser(null);
+      // Chỉ kết thúc phiên khi backend xác nhận token không hợp lệ.
+      // Không xóa token vì lỗi mạng, backend cold start hoặc lỗi 5xx tạm thời.
+      if (error?.status === 401) {
+        clearStoredCredentials();
+        setUser(null);
+      }
+      throw error;
     }
   };
 
   useEffect(() => {
     const initAuth = async () => {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+      const hasStoredSession =
+        typeof window !== 'undefined' &&
+        Boolean(localStorage.getItem('accessToken') || localStorage.getItem('refreshToken'));
       try {
-        if (token) {
-          await Promise.race([
-            refreshProfile(),
-            new Promise((_, reject) =>
-              window.setTimeout(
-                () => reject(new Error('Auth profile request timed out')),
-                6000
-              )
-            ),
-          ]);
+        if (hasStoredSession) {
+          await refreshProfile();
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to initialize auth:', error);
-        clearStoredCredentials();
-        setUser(null);
+        if (error?.status === 401) {
+          clearStoredCredentials();
+          setUser(null);
+        }
       } finally {
         setLoading(false);
       }

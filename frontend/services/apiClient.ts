@@ -1,19 +1,78 @@
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
 
-let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
-
-const subscribeTokenRefresh = (cb: (token: string) => void) => {
-  refreshSubscribers.push(cb);
+type ApiError = Error & {
+  status?: number;
+  code?: string | null;
+  data?: any;
 };
 
-const onRefreshed = (token: string) => {
-  refreshSubscribers.forEach((cb) => cb(token));
-  refreshSubscribers = [];
-};
+// Mọi request nhận 401 cùng lúc dùng chung đúng một lần refresh.
+// Promise được reject cho tất cả request chờ nếu refresh thất bại, tránh treo vô hạn.
+let refreshPromise: Promise<string> | null = null;
+
+async function performTokenRefresh(refreshToken: string): Promise<string> {
+  const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  });
+
+  let refreshBody: any = null;
+  try {
+    refreshBody = await refreshRes.json();
+  } catch {
+    // Backend/proxy có thể trả response không phải JSON.
+  }
+
+  if (!refreshRes.ok) {
+    const error = new Error(
+      refreshBody?.message || `Không thể làm mới phiên đăng nhập (${refreshRes.status})`,
+    ) as ApiError;
+    error.status = refreshRes.status;
+    error.code = refreshBody?.code || null;
+    error.data = refreshBody;
+
+    // Chỉ xóa phiên khi backend xác nhận refresh token không còn hợp lệ.
+    // Lỗi mạng/5xx là lỗi tạm thời và không được ép người dùng đăng nhập lại.
+    if (refreshRes.status === 401) {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      if (window.location.pathname !== '/auth/login') {
+        window.location.href = '/auth/login';
+      }
+    }
+
+    throw error;
+  }
+
+  const newAccessToken = refreshBody?.data?.accessToken;
+  if (!newAccessToken) {
+    throw new Error('Refresh token response missing access token');
+  }
+
+  // Người dùng có thể đã logout hoặc đăng nhập tài khoản khác trong lúc refresh.
+  // Không được khôi phục access token cho một phiên không còn là phiên hiện tại.
+  if (localStorage.getItem('refreshToken') !== refreshToken) {
+    throw new Error('Phiên đăng nhập đã thay đổi trong lúc làm mới token');
+  }
+
+  localStorage.setItem('accessToken', newAccessToken);
+  return newAccessToken;
+}
+
+function getRefreshedAccessToken(refreshToken: string): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = performTokenRefresh(refreshToken).finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  return refreshPromise;
+}
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
+  let requestAccessToken: string | null = null;
   
   // Set default headers
   const headers = new Headers(options.headers || {});
@@ -23,9 +82,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   // Get token from localStorage
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      headers.set('Authorization', `Bearer ${token}`);
+    requestAccessToken = localStorage.getItem('accessToken');
+    if (requestAccessToken) {
+      headers.set('Authorization', `Bearer ${requestAccessToken}`);
     }
   }
 
@@ -43,60 +102,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     endpoint !== '/auth/login' &&
     typeof window !== 'undefined'
   ) {
+    const currentAccessToken = localStorage.getItem('accessToken');
     const refreshToken = localStorage.getItem('refreshToken');
-    if (refreshToken) {
-      let refreshedToken: string | null = null;
 
-      if (!isRefreshing) {
-        isRefreshing = true;
-        try {
-          console.log('Centralized API client: Access token expired. Attempting to refresh...');
-          const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken }),
-          });
+    // Request khác có thể đã refresh xong trong lúc request này đang chờ response 401.
+    const retryAccessToken =
+      currentAccessToken && currentAccessToken !== requestAccessToken
+        ? currentAccessToken
+        : refreshToken
+          ? await getRefreshedAccessToken(refreshToken)
+          : null;
 
-          if (refreshRes.ok) {
-            const refreshBody = await refreshRes.json();
-            const newAccessToken = refreshBody?.data?.accessToken;
-            if (newAccessToken) {
-              localStorage.setItem('accessToken', newAccessToken);
-              console.log('Centralized API client: Token refreshed successfully.');
-              refreshedToken = newAccessToken;
-              onRefreshed(newAccessToken);
-              isRefreshing = false;
-            } else {
-              throw new Error('Refresh token response missing access token');
-            }
-          } else {
-            throw new Error('Refresh token request failed');
-          }
-        } catch (refreshErr) {
-          console.error('Centralized API client: Token refresh failed.', refreshErr);
-          isRefreshing = false;
-          // Clear credentials and force redirect to login
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-          window.location.href = '/auth/login';
-          throw refreshErr;
-        }
-      }
-
-      if (refreshedToken) {
-        headers.set('Authorization', `Bearer ${refreshedToken}`);
-        response = await fetch(url, { ...options, headers });
-      } else {
-        // Return a Promise that resolves when another request finishes refreshing.
-        const retryOriginalRequest = new Promise<Response>((resolve) => {
-          subscribeTokenRefresh((token: string) => {
-            headers.set('Authorization', `Bearer ${token}`);
-            resolve(fetch(url, { ...options, headers }));
-          });
-        });
-
-        response = await retryOriginalRequest;
-      }
+    if (retryAccessToken) {
+      headers.set('Authorization', `Bearer ${retryAccessToken}`);
+      response = await fetch(url, { ...options, headers });
     }
   }
 
@@ -109,7 +128,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     const errorMessage = data?.message || `Lỗi hệ thống (${response.status})`;
-    const error = new Error(errorMessage) as any;
+    const error = new Error(errorMessage) as ApiError;
     error.status = response.status;
     error.code = data?.code || null;
     error.data = data;
