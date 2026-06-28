@@ -531,6 +531,12 @@ export const vi = {
       amenities: "Tiện Ích & Dịch Vụ",
       images: "Hình Ảnh (Multimedia)",
       uploadImages: "Tải hình ảnh lên",
+      mainImage: "Ảnh chính của phòng",
+      mainImageHint: "Ảnh đại diện hiển thị trên tin đăng",
+      chooseMainImage: "Chọn ảnh chính",
+      changeMainImage: "Thay ảnh chính",
+      removeMainImage: "Xóa ảnh chính",
+      roomImages: "Hình ảnh phòng",
       uploadInstruction: "Nhấn để chọn (Tối thiểu",
       uploadInstructionMax: "hình, tối đa",
       uploaded: "ĐÃ TẢI LÊN",
@@ -543,6 +549,7 @@ export const vi = {
       errorRentInvalid: "Giá thuê hàng tháng phải lớn hơn 0.",
       errorDepositInvalid: "Tiền đặt cọc không hợp lệ.",
       errorCapacityInvalid: "Sức chứa phải lớn hơn 0.",
+      errorMainImageRequired: "Vui lòng chọn ảnh chính của phòng.",
       errorMinImages: "Cần tối thiểu",
       errorMinImagesSuffix: "hình ảnh.",
       createError: "Tạo phòng thất bại. Vui lòng thử lại.",
@@ -603,9 +610,14 @@ export const vi = {
       longitude: "Kinh độ",
       imagesTitle: "Hình ảnh",
       addMore: "Thêm ảnh",
-      imageWarning: "Lưu ý: tải ảnh mới sẽ thay thế toàn bộ ảnh hiện tại của phòng.",
+      imageHelp: "Chọn ảnh chính, thêm hoặc xóa ảnh phòng. Cần giữ ít nhất 3 ảnh.",
       coverImage: "ẢNH BÌA",
-      uploadFromDevice: "Tải lên từ thiết bị"
+      uploadFromDevice: "Tải lên từ thiết bị",
+      setAsCover: "Đặt làm ảnh bìa",
+      removeImage: "Xóa ảnh",
+      newImage: "ẢNH MỚI",
+      errorMinImages: "Phòng phải có ít nhất 3 hình ảnh.",
+      errorCoverRequired: "Vui lòng chọn ảnh bìa cho phòng."
     }
   },
   admin: {

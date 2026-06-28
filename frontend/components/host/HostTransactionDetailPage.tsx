@@ -110,12 +110,6 @@ export default function HostTransactionDetailPage({ transactionId }: { transacti
                     {t('host.transactionDetail.txCode')} <span className="font-semibold text-[#191B23]">{detail.bookingCode}</span>
                   </p>
                 </div>
-                <button type="button" className="flex h-14 w-fit items-center gap-2 rounded-xl bg-[#004AC6] px-6 text-base text-white shadow-sm hover:bg-[#003f9e]">
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
-                  </svg>
-                  {t('host.transactionDetail.exportPdf')}
-                </button>
               </section>
 
               <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">

@@ -8,14 +8,21 @@ import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import HostNotificationBell from '@/components/host/HostNotificationBell';
 import HostSidebar from '@/components/host/HostSidebar';
 import GoogleAddressInput, { type SelectedPlace } from '@/components/host/GoogleAddressInput';
-import { hostRoomService, type HostRoom } from '@/services/hostRoomService';
-import { getRoomTypeOptions } from '@/data/hostCreateRoom';
+import { hostRoomService, type HostRoom, type HostRoomImage } from '@/services/hostRoomService';
+import { MAX_ROOM_IMAGES, MIN_REQUIRED_IMAGES, getRoomTypeOptions } from '@/data/hostCreateRoom';
 import { useTranslation } from '@/context/LanguageContext';
 
-interface UploadPreview {
+interface EditableRoomImage {
   id: string;
-  file: File;
   url: string;
+  kind: 'existing' | 'new';
+  file?: File;
+}
+
+function orderRoomImages(images: HostRoomImage[]): HostRoomImage[] {
+  const sorted = [...images].sort((a, b) => a.sequence_number - b.sequence_number);
+  const cover = sorted.find((image) => image.is_cover);
+  return cover ? [cover, ...sorted.filter((image) => image !== cover)] : sorted;
 }
 
 function EditSection({
@@ -92,6 +99,7 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
   // tải lại dữ liệu mới nhất (kể cả khi component được tái dùng từ Router Cache).
   const refreshKey = searchParams.get('r');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const newImageUrlsRef = useRef<Set<string>>(new Set());
 
   const [room, setRoom] = useState<HostRoom | null>(null);
   const [loading, setLoading] = useState(true);
@@ -116,7 +124,8 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
   const [internetCost, setInternetCost] = useState('');
   const [serviceFee, setServiceFee] = useState('');
 
-  const [newImages, setNewImages] = useState<UploadPreview[]>([]);
+  const [editableImages, setEditableImages] = useState<EditableRoomImage[]>([]);
+  const [coverImageId, setCoverImageId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -151,6 +160,13 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
         setWaterCost(formatMoneyInput(found.water_cost ?? ''));
         setInternetCost(formatMoneyInput(found.internet_cost ?? ''));
         setServiceFee(formatMoneyInput(found.service_fee ?? ''));
+        const loadedImages: EditableRoomImage[] = orderRoomImages(found.images || []).map((image) => ({
+          id: `existing:${image.image_url}`,
+          url: image.image_url,
+          kind: 'existing',
+        }));
+        setEditableImages(loadedImages);
+        setCoverImageId(loadedImages[0]?.id || null);
       } catch (err: any) {
         if (!cancelled) setLoadError(err?.message || t('host.editRoom.errorLoadFailed'));
       } finally {
@@ -165,9 +181,9 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
 
   useEffect(() => {
     return () => {
-      newImages.forEach((img) => URL.revokeObjectURL(img.url));
+      newImageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      newImageUrlsRef.current.clear();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Include the current room_type as a select option if it isn't a known preset.
@@ -187,22 +203,34 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
   const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(event.target.files || []);
     if (selected.length === 0) return;
-    setNewImages((current) => [
-      ...current,
-      ...selected.map((file) => ({
-        id: `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        file,
-        url: URL.createObjectURL(file),
-      })),
-    ]);
+    setEditableImages((current) => {
+      const remaining = Math.max(0, MAX_ROOM_IMAGES - current.length);
+      const added = selected.slice(0, remaining).map((file) => {
+        const url = URL.createObjectURL(file);
+        newImageUrlsRef.current.add(url);
+        return {
+          id: `new:${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          file,
+          url,
+          kind: 'new' as const,
+        };
+      });
+      if (!coverImageId && added[0]) setCoverImageId(added[0].id);
+      return [...current, ...added];
+    });
     event.target.value = '';
   };
 
-  const handleRemoveNewImage = (id: string) => {
-    setNewImages((current) => {
-      const target = current.find((img) => img.id === id);
-      if (target) URL.revokeObjectURL(target.url);
-      return current.filter((img) => img.id !== id);
+  const handleRemoveImage = (id: string) => {
+    setEditableImages((current) => {
+      const target = current.find((image) => image.id === id);
+      if (target?.kind === 'new') {
+        URL.revokeObjectURL(target.url);
+        newImageUrlsRef.current.delete(target.url);
+      }
+      const next = current.filter((image) => image.id !== id);
+      if (coverImageId === id) setCoverImageId(next[0]?.id || null);
+      return next;
     });
   };
 
@@ -230,6 +258,9 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
     if (!rentValue || Number(rentValue) <= 0) return setError(t('host.editRoom.errorRentInvalid'));
     if (depositValue === '' || Number(depositValue) < 0) return setError(t('host.editRoom.errorDepositInvalid'));
     if (!capacity || Number(capacity) <= 0) return setError(t('host.editRoom.errorCapacityInvalid'));
+    if (editableImages.length < MIN_REQUIRED_IMAGES) return setError(t('host.editRoom.errorMinImages'));
+    const coverImage = editableImages.find((image) => image.id === coverImageId);
+    if (!coverImage) return setError(t('host.editRoom.errorCoverRequired'));
 
     const formData = new FormData();
     formData.append('title', title.trim());
@@ -250,7 +281,19 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
     formData.append('internet_cost', parseMoneyInput(internetCost) || '0');
     formData.append('service_fee', parseMoneyInput(serviceFee) || '0');
     formData.append('room_description', description.trim());
-    newImages.forEach((img) => formData.append('images', img.file));
+    const keptImageUrls = editableImages
+      .filter((image) => image.kind === 'existing')
+      .map((image) => image.url);
+    const newImages = editableImages.filter(
+      (image): image is EditableRoomImage & { file: File } => image.kind === 'new' && Boolean(image.file),
+    );
+    formData.append('kept_image_urls', JSON.stringify(keptImageUrls));
+    if (coverImage.kind === 'existing') {
+      formData.append('cover_image_url', coverImage.url);
+    } else {
+      formData.append('cover_new_index', String(newImages.findIndex((image) => image.id === coverImage.id)));
+    }
+    newImages.forEach((image) => formData.append('images', image.file));
 
     setSubmitting(true);
     try {
@@ -291,7 +334,8 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
   }
 
   const badge = statusMeta[room.status] || statusMeta.AVAILABLE;
-  const existingImages = room.images || [];
+  const coverImage = editableImages.find((image) => image.id === coverImageId) || null;
+  const galleryImages = editableImages.filter((image) => image.id !== coverImageId);
 
   return (
     <main className="min-h-screen bg-slate-50 font-sans text-slate-900">
@@ -444,7 +488,7 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
                       }}
                       onPlaceSelected={handlePlaceSelected}
                       placeholder={t('host.editRoom.addressPlaceholder')}
-                      inputClassName={inputClass}
+                      inputClassName={`${inputClass} w-full pr-10`}
                     />
                   </div>
                   <div className="flex flex-col gap-1">
@@ -459,7 +503,7 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
               </EditSection>
             </div>
 
-            <aside className="rounded-xl border border-[rgba(226,232,240,0.5)] bg-white/80 p-6 shadow-sm backdrop-blur-md">
+            <aside className="h-fit rounded-xl border border-[rgba(226,232,240,0.5)] bg-white/80 p-6 shadow-sm backdrop-blur-md">
               <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFilesSelected} />
               <div className="flex items-center justify-between border-b border-[#C3C6D7] pb-4">
                 <h2 className="flex items-center gap-2 text-2xl font-semibold leading-[31px]">
@@ -468,56 +512,96 @@ export default function HostEditRoomPage({ listingId }: { listingId: string }) {
                   </svg>
                   {t('host.editRoom.imagesTitle')}
                 </h2>
-                <button type="button" onClick={() => fileInputRef.current?.click()} className="rounded px-2 py-1 text-base text-[#004AC6] hover:bg-[#F3F3FE]">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={editableImages.length >= MAX_ROOM_IMAGES}
+                  className="rounded px-2 py-1 text-base text-[#004AC6] hover:bg-[#F3F3FE] disabled:cursor-not-allowed disabled:text-[#9CA3AF]"
+                >
                   {t('host.editRoom.addMore')}
                 </button>
               </div>
 
-              {newImages.length > 0 && (
-                <p className="mt-4 rounded-lg bg-[rgba(148,55,0,0.08)] px-3 py-2 text-xs font-semibold text-[#943700]">
-                  {t('host.editRoom.imageWarning')}
-                </p>
-              )}
+              <div className="mt-4 flex items-start justify-between gap-3 rounded-lg bg-[#F3F3FE] px-3 py-2 text-xs text-[#434655]">
+                <p>{t('host.editRoom.imageHelp')}</p>
+                <span className="shrink-0 font-bold text-[#004AC6]">{editableImages.length}/{MAX_ROOM_IMAGES}</span>
+              </div>
 
               <div className="mt-6 space-y-4">
-                {newImages.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-4">
-                    {newImages.map((image, idx) => (
-                      <figure key={image.id} className="group relative">
-                        <img src={image.url} alt={`Ảnh mới ${idx + 1}`} className="h-[120px] w-full rounded-lg border border-[#C3C6D7] object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveNewImage(image.id)}
-                          aria-label="Xóa ảnh"
-                          className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-white text-[#BA1A1A] shadow-sm"
-                        >
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12M10 11v6M14 11v6M9 7V5h6v2M8 7l1 13h6l1-13" />
-                          </svg>
-                        </button>
-                      </figure>
-                    ))}
-                  </div>
-                ) : existingImages.length > 0 ? (
-                  <>
-                    <figure className="relative overflow-hidden rounded-lg border border-[#C3C6D7]">
-                      <img src={existingImages[0].image_url} alt="Ảnh bìa" className="h-[194px] w-full object-cover" />
-                      <figcaption className="absolute bottom-2 left-2 rounded bg-[rgba(0,74,198,0.9)] px-2 py-1 text-[10px] font-bold text-white">{t('host.editRoom.coverImage')}</figcaption>
-                    </figure>
-                    {existingImages.length > 1 && (
-                      <div className="grid grid-cols-2 gap-4">
-                        {existingImages.slice(1, 5).map((image) => (
-                          <img key={image.image_url} src={image.image_url} alt="Ảnh phòng" className="h-[120px] w-full rounded-lg border border-[#C3C6D7] object-cover" />
-                        ))}
-                      </div>
-                    )}
-                  </>
+                {coverImage ? (
+                  <figure className="group relative overflow-hidden rounded-lg border-2 border-[#004AC6]">
+                    <img src={coverImage.url} alt={t('host.editRoom.coverImage')} className="h-[194px] w-full object-cover" />
+                    <figcaption className="absolute bottom-2 left-2 rounded bg-[rgba(0,74,198,0.9)] px-2 py-1 text-[10px] font-bold text-white">
+                      {t('host.editRoom.coverImage')}
+                    </figcaption>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(coverImage.id)}
+                      disabled={editableImages.length <= MIN_REQUIRED_IMAGES}
+                      aria-label={t('host.editRoom.removeImage')}
+                      title={editableImages.length <= MIN_REQUIRED_IMAGES ? t('host.editRoom.errorMinImages') : t('host.editRoom.removeImage')}
+                      className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#BA1A1A] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12M10 11v6M14 11v6M9 7V5h6v2M8 7l1 13h6l1-13" />
+                      </svg>
+                    </button>
+                  </figure>
                 ) : (
-                  <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-[120px] w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#C3C6D7] text-sm text-[#434655] hover:border-[#004AC6] hover:text-[#004AC6]">
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-[160px] w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#C3C6D7] text-sm text-[#434655] hover:border-[#004AC6] hover:text-[#004AC6]">
                     <svg className="mb-1 h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
                     </svg>
                     {t('host.editRoom.uploadFromDevice')}
+                  </button>
+                )}
+
+                {galleryImages.length > 0 && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {galleryImages.map((image, idx) => (
+                      <figure key={image.id} className="group relative overflow-hidden rounded-lg border border-[#C3C6D7]">
+                        <img src={image.url} alt={`${t('host.editRoom.imagesTitle')} ${idx + 1}`} className="h-[120px] w-full object-cover" />
+                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/55 p-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setCoverImageId(image.id)}
+                            className="min-w-0 truncate rounded bg-white/95 px-2 py-1 text-[10px] font-bold text-[#004AC6]"
+                          >
+                            {t('host.editRoom.setAsCover')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(image.id)}
+                            disabled={editableImages.length <= MIN_REQUIRED_IMAGES}
+                            aria-label={t('host.editRoom.removeImage')}
+                            title={editableImages.length <= MIN_REQUIRED_IMAGES ? t('host.editRoom.errorMinImages') : t('host.editRoom.removeImage')}
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-[#BA1A1A] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12M10 11v6M14 11v6M9 7V5h6v2M8 7l1 13h6l1-13" />
+                            </svg>
+                          </button>
+                        </div>
+                        {image.kind === 'new' && (
+                          <span className="absolute left-1.5 top-1.5 rounded bg-[#006A61] px-2 py-1 text-[9px] font-bold text-white">
+                            {t('host.editRoom.newImage')}
+                          </span>
+                        )}
+                      </figure>
+                    ))}
+                  </div>
+                )}
+
+                {editableImages.length < MAX_ROOM_IMAGES && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#004AC6] text-sm font-semibold text-[#004AC6] hover:bg-[#F3F3FE]"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+                    </svg>
+                    {t('host.editRoom.addMore')}
                   </button>
                 )}
               </div>

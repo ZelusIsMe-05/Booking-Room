@@ -531,6 +531,12 @@ export const en = {
       amenities: "Amenities & Services",
       images: "Images (Multimedia)",
       uploadImages: "Upload images",
+      mainImage: "Main room image",
+      mainImageHint: "The representative image shown on the listing",
+      chooseMainImage: "Choose main image",
+      changeMainImage: "Change main image",
+      removeMainImage: "Remove main image",
+      roomImages: "Room images",
       uploadInstruction: "Click to select (Min",
       uploadInstructionMax: "images, max",
       uploaded: "UPLOADED",
@@ -543,6 +549,7 @@ export const en = {
       errorRentInvalid: "Monthly rent must be greater than 0.",
       errorDepositInvalid: "Invalid deposit amount.",
       errorCapacityInvalid: "Capacity must be greater than 0.",
+      errorMainImageRequired: "Please choose the room's main image.",
       errorMinImages: "Need at least",
       errorMinImagesSuffix: "images.",
       createError: "Failed to create room. Please try again.",
@@ -603,9 +610,14 @@ export const en = {
       longitude: "Longitude",
       imagesTitle: "Images",
       addMore: "Add images",
-      imageWarning: "Note: uploading new images will replace all current room images.",
+      imageHelp: "Choose a cover, add or remove room images. Keep at least 3 images.",
       coverImage: "COVER",
-      uploadFromDevice: "Upload from device"
+      uploadFromDevice: "Upload from device",
+      setAsCover: "Set as cover",
+      removeImage: "Remove image",
+      newImage: "NEW",
+      errorMinImages: "A room must have at least 3 images.",
+      errorCoverRequired: "Please choose a cover image."
     }
   },
   admin: {

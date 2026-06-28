@@ -6,6 +6,8 @@ const { RESOURCE_TYPES, generateS3Key, uploadToS3, deleteFromS3, extractS3KeyFro
 const { geocodeAddress } = require('../../utils/geocode');
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MIN_ROOM_IMAGES = 3;
+const MAX_ROOM_IMAGES = 10;
 
 function optionalText(value) {
   if (value === undefined || value === null) return null;
@@ -17,6 +19,25 @@ function optionalCoordinate(value) {
   if (value === undefined || value === null || value === '') return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function parseKeptImageUrls(value) {
+  let parsed;
+  try {
+    parsed = Array.isArray(value) ? value : JSON.parse(String(value));
+  } catch {
+    throw new AppError('VALIDATION_ERROR', 'kept_image_urls must be a JSON array', 400);
+  }
+
+  if (!Array.isArray(parsed) || parsed.some((url) => typeof url !== 'string' || !url.trim())) {
+    throw new AppError('VALIDATION_ERROR', 'kept_image_urls contains an invalid URL', 400);
+  }
+
+  const normalized = parsed.map((url) => url.trim());
+  if (new Set(normalized).size !== normalized.length) {
+    throw new AppError('VALIDATION_ERROR', 'kept_image_urls contains duplicate URLs', 400);
+  }
+  return normalized;
 }
 
 function buildGeocodeAddress(payload) {
@@ -208,6 +229,18 @@ async function updateRoom(landlordId, roomId, payload = {}, files = []) {
   if (patch.deposit_amount !== undefined && Number(patch.deposit_amount) < 0) throw new AppError('VALIDATION_ERROR', 'deposit_amount must be >= 0', 400);
   if (patch.max_capacity !== undefined && Number(patch.max_capacity) <= 0) throw new AppError('VALIDATION_ERROR', 'max_capacity must be > 0', 400);
 
+  if (files.length > MAX_ROOM_IMAGES) {
+    throw new AppError('VALIDATION_ERROR', `A room can have at most ${MAX_ROOM_IMAGES} images`, 400);
+  }
+  for (const file of files) {
+    if (!file.size || file.size > MAX_IMAGE_BYTES) {
+      throw new AppError('VALIDATION_ERROR', 'Each image must be <= 5MB', 400);
+    }
+  }
+
+  const hasImageManifest = payload.kept_image_urls !== undefined;
+  const keptImageUrls = hasImageManifest ? parseKeptImageUrls(payload.kept_image_urls) : null;
+
   const critical = ['monthly_rent', 'deposit_amount', 'title', 'room_description', 'room_type'];
   let needApprovalReset = false;
   for (const key of critical) {
@@ -218,39 +251,89 @@ async function updateRoom(landlordId, roomId, payload = {}, files = []) {
   }
   // Đổi địa chỉ/vị trí cũng phải duyệt lại (locationChanged do buildPatch tính sẵn).
   if (locationChanged) needApprovalReset = true;
-  if (files && files.length) needApprovalReset = true;
-
-  return db.transaction(async (trx) => {
+  let removedImageUrls = [];
+  const result = await db.transaction(async (trx) => {
     if (Object.keys(patch).length) {
       await roomRepository.update(roomId, patch, trx);
     }
 
-    if (files && files.length) {
-      const oldImages = await trx('room_images').select('image_url').where('room_id', roomId);
-      for (const img of oldImages) {
-        const s3Key = extractS3KeyFromUrl(img.image_url);
-        if (s3Key) {
-          try {
-            await deleteFromS3(s3Key);
-          } catch (err) {
-            console.error(`Failed to delete old S3 image: ${s3Key}`, err);
-          }
+    const currentImages = await trx('room_images')
+      .select('sequence_number', 'image_url', 'is_cover')
+      .where('room_id', roomId)
+      .orderBy('sequence_number');
+    const currentCover = currentImages.find((image) => image.is_cover) || currentImages[0] || null;
+    const currentOrderedUrls = currentCover
+      ? [currentCover.image_url, ...currentImages.filter((image) => image.image_url !== currentCover.image_url).map((image) => image.image_url)]
+      : [];
+    let imageChanged = false;
+
+    if (hasImageManifest) {
+      const currentUrlSet = new Set(currentImages.map((image) => image.image_url));
+      if (keptImageUrls.some((url) => !currentUrlSet.has(url))) {
+        throw new AppError('VALIDATION_ERROR', 'Cannot retain an image that does not belong to this room', 400);
+      }
+
+      const nextImageCount = keptImageUrls.length + files.length;
+      if (nextImageCount < MIN_ROOM_IMAGES || nextImageCount > MAX_ROOM_IMAGES) {
+        throw new AppError(
+          'VALIDATION_ERROR',
+          `A room must have between ${MIN_ROOM_IMAGES} and ${MAX_ROOM_IMAGES} images`,
+          400,
+        );
+      }
+
+      const requestedCoverUrl = optionalText(payload.cover_image_url);
+      if (requestedCoverUrl && !keptImageUrls.includes(requestedCoverUrl)) {
+        throw new AppError('VALIDATION_ERROR', 'cover_image_url must be one of the retained images', 400);
+      }
+      let requestedCoverNewIndex = null;
+      if (!requestedCoverUrl && payload.cover_new_index !== undefined && payload.cover_new_index !== '') {
+        requestedCoverNewIndex = Number(payload.cover_new_index);
+        if (!Number.isInteger(requestedCoverNewIndex) || requestedCoverNewIndex < 0 || requestedCoverNewIndex >= files.length) {
+          throw new AppError('VALIDATION_ERROR', 'cover_new_index is invalid', 400);
         }
       }
 
       const savedUrls = [];
       for (let idx = 0; idx < files.length; idx++) {
         const file = files[idx];
-        if (!file.size || file.size > MAX_IMAGE_BYTES) {
-          throw new AppError('VALIDATION_ERROR', 'Each image must be <= 5MB', 400);
-        }
         const s3Key = generateS3Key(RESOURCE_TYPES.ROOM, roomId, file.originalname, idx + 1);
         const s3Url = await uploadToS3(file.buffer, s3Key, file.mimetype);
         savedUrls.push(s3Url);
       }
 
+      const allUrls = [...keptImageUrls, ...savedUrls];
+      let coverUrl = requestedCoverUrl;
+      if (!coverUrl && requestedCoverNewIndex !== null) coverUrl = savedUrls[requestedCoverNewIndex];
+
+      if (!coverUrl && currentCover && keptImageUrls.includes(currentCover.image_url)) {
+        coverUrl = currentCover.image_url;
+      }
+      coverUrl = coverUrl || allUrls[0];
+
+      const desiredUrls = [coverUrl, ...allUrls.filter((url) => url !== coverUrl)];
+      imageChanged = JSON.stringify(desiredUrls) !== JSON.stringify(currentOrderedUrls);
+      if (imageChanged) {
+        await roomRepository.replaceImages(roomId, desiredUrls, trx);
+      }
+      removedImageUrls = currentImages
+        .map((image) => image.image_url)
+        .filter((url) => !keptImageUrls.includes(url));
+    } else if (files.length) {
+      // Backward compatibility for clients that still replace the complete gallery.
+      const savedUrls = [];
+      for (let idx = 0; idx < files.length; idx++) {
+        const file = files[idx];
+        const s3Key = generateS3Key(RESOURCE_TYPES.ROOM, roomId, file.originalname, idx + 1);
+        const s3Url = await uploadToS3(file.buffer, s3Key, file.mimetype);
+        savedUrls.push(s3Url);
+      }
       await roomRepository.replaceImages(roomId, savedUrls, trx);
+      removedImageUrls = currentImages.map((image) => image.image_url);
+      imageChanged = true;
     }
+
+    if (imageChanged) needApprovalReset = true;
 
     if (needApprovalReset) {
       // room_approvals không lưu snapshot nội dung và rooms chỉ giữ 1 bản ghi
@@ -273,6 +356,19 @@ async function updateRoom(landlordId, roomId, payload = {}, files = []) {
 
     return { room: fresh, images: imgs, approval: latestApproval ? latestApproval.approval_status : null };
   });
+
+  // Delete only images removed from the gallery, after the database update succeeds.
+  for (const imageUrl of removedImageUrls) {
+    const s3Key = extractS3KeyFromUrl(imageUrl);
+    if (!s3Key) continue;
+    try {
+      await deleteFromS3(s3Key);
+    } catch (err) {
+      console.error(`Failed to delete removed S3 image: ${s3Key}`, err);
+    }
+  }
+
+  return result;
 }
 
 async function listMyRooms(landlordId, query) {

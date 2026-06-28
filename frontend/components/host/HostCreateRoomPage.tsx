@@ -62,9 +62,19 @@ function SectionCard({ number, title, children }: SectionCardProps) {
 const priceInputClass =
   'h-[58px] rounded-lg border border-[#C3C6D7] bg-white px-4 text-base text-[#191B23] outline-none placeholder:text-[#6B7280] focus:ring-2 focus:ring-[#004AC6]/20';
 
+function formatMoneyInput(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  return digits ? Number(digits).toLocaleString('vi-VN') : '';
+}
+
+function parseMoneyInput(value: string): string {
+  return value.replace(/\D/g, '');
+}
+
 export default function HostCreateRoomPage() {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const mainImageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useTranslation();
 
@@ -95,11 +105,13 @@ export default function HostCreateRoomPage() {
   const [internetCost, setInternetCost] = useState('');
   const [serviceFee, setServiceFee] = useState('');
 
+  const [mainImage, setMainImage] = useState<UploadPreview | null>(null);
   const [images, setImages] = useState<UploadPreview[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const missingImages = Math.max(0, MIN_REQUIRED_IMAGES - images.length);
+  const imageCount = images.length + (mainImage ? 1 : 0);
+  const missingImages = Math.max(0, MIN_REQUIRED_IMAGES - imageCount);
 
   // Revoke object URLs on unmount to avoid leaks.
   useEffect(() => {
@@ -122,11 +134,34 @@ export default function HostCreateRoomPage() {
     fileInputRef.current?.click();
   };
 
+  const handleMainImageSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setMainImage((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return {
+        id: `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        file,
+        url: URL.createObjectURL(file),
+      };
+    });
+    event.target.value = '';
+  };
+
+  const handleRemoveMainImage = () => {
+    setMainImage((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  };
+
   const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(event.target.files || []);
     if (selected.length === 0) return;
     setImages((current) => {
-      const remaining = MAX_ROOM_IMAGES - current.length;
+      // Keep one slot reserved for the explicitly selected main image.
+      const remaining = MAX_ROOM_IMAGES - current.length - 1;
       const next = selected.slice(0, Math.max(0, remaining)).map((file) => ({
         id: `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file,
@@ -172,10 +207,14 @@ export default function HostCreateRoomPage() {
     // Client-side validation mirroring the backend rules.
     if (!title.trim()) return setError(t('host.createRoom.errorNameRequired'));
     if (!address.trim()) return setError(t('host.createRoom.errorAddressRequired'));
-    if (!monthlyRent || Number(monthlyRent) <= 0) return setError(t('host.createRoom.errorRentInvalid'));
-    if (depositAmount === '' || Number(depositAmount) < 0) return setError(t('host.createRoom.errorDepositInvalid'));
+    const rentValue = parseMoneyInput(monthlyRent);
+    const depositValue = parseMoneyInput(depositAmount);
+
+    if (!rentValue || Number(rentValue) <= 0) return setError(t('host.createRoom.errorRentInvalid'));
+    if (depositValue === '' || Number(depositValue) < 0) return setError(t('host.createRoom.errorDepositInvalid'));
     if (!capacity || Number(capacity) <= 0) return setError(t('host.createRoom.errorCapacityInvalid'));
-    if (images.length < MIN_REQUIRED_IMAGES) return setError(`${t('host.createRoom.errorMinImages')} ${MIN_REQUIRED_IMAGES} ${t('host.createRoom.errorMinImagesSuffix')}`);
+    if (!mainImage) return setError(t('host.createRoom.errorMainImageRequired'));
+    if (imageCount < MIN_REQUIRED_IMAGES) return setError(`${t('host.createRoom.errorMinImages')} ${MIN_REQUIRED_IMAGES} ${t('host.createRoom.errorMinImagesSuffix')}`);
 
     const roomTypeLabel = roomTypeOptions.find((o) => o.value === roomType)?.label ?? roomType;
     const composedAddress = [address.trim(), wardName, districtName, provinceName, 'Việt Nam'].filter(Boolean).join(', ');
@@ -192,13 +231,14 @@ export default function HostCreateRoomPage() {
     if (latitude.trim()) formData.append('latitude', latitude.trim());
     if (longitude.trim()) formData.append('longitude', longitude.trim());
     formData.append('max_capacity', String(capacity));
-    formData.append('monthly_rent', String(monthlyRent));
-    formData.append('deposit_amount', String(depositAmount));
-    formData.append('electricity_cost', String(electricityCost || 0));
-    formData.append('water_cost', String(waterCost || 0));
-    formData.append('internet_cost', String(internetCost || 0));
-    formData.append('service_fee', String(serviceFee || 0));
+    formData.append('monthly_rent', rentValue);
+    formData.append('deposit_amount', depositValue);
+    formData.append('electricity_cost', parseMoneyInput(electricityCost) || '0');
+    formData.append('water_cost', parseMoneyInput(waterCost) || '0');
+    formData.append('internet_cost', parseMoneyInput(internetCost) || '0');
+    formData.append('service_fee', parseMoneyInput(serviceFee) || '0');
     if (description.trim()) formData.append('room_description', description.trim());
+    formData.append('images', mainImage.file);
     images.forEach((img) => formData.append('images', img.file));
 
     setSubmitting(true);
@@ -403,11 +443,11 @@ export default function HostCreateRoomPage() {
                   <FieldLabel htmlFor="monthly-rent">{t('host.createRoom.monthlyRent')}</FieldLabel>
                   <input
                     id="monthly-rent"
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
                     value={monthlyRent}
-                    onChange={(event) => setMonthlyRent(event.target.value)}
-                    placeholder="VD: 4500000"
+                    onChange={(event) => setMonthlyRent(formatMoneyInput(event.target.value))}
+                    placeholder="VD: 4.500.000"
                     className={priceInputClass}
                   />
                 </div>
@@ -415,11 +455,11 @@ export default function HostCreateRoomPage() {
                   <FieldLabel htmlFor="deposit-amount">{t('host.createRoom.deposit')}</FieldLabel>
                   <input
                     id="deposit-amount"
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
                     value={depositAmount}
-                    onChange={(event) => setDepositAmount(event.target.value)}
-                    placeholder="VD: 4500000"
+                    onChange={(event) => setDepositAmount(formatMoneyInput(event.target.value))}
+                    placeholder="VD: 4.500.000"
                     className={priceInputClass}
                   />
                 </div>
@@ -427,10 +467,10 @@ export default function HostCreateRoomPage() {
                   <FieldLabel htmlFor="electricity-cost">{t('host.createRoom.electricityCost')}</FieldLabel>
                   <input
                     id="electricity-cost"
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
                     value={electricityCost}
-                    onChange={(event) => setElectricityCost(event.target.value)}
+                    onChange={(event) => setElectricityCost(formatMoneyInput(event.target.value))}
                     placeholder="0"
                     className={priceInputClass}
                   />
@@ -439,10 +479,10 @@ export default function HostCreateRoomPage() {
                   <FieldLabel htmlFor="water-cost">{t('host.createRoom.waterCost')}</FieldLabel>
                   <input
                     id="water-cost"
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
                     value={waterCost}
-                    onChange={(event) => setWaterCost(event.target.value)}
+                    onChange={(event) => setWaterCost(formatMoneyInput(event.target.value))}
                     placeholder="0"
                     className={priceInputClass}
                   />
@@ -451,10 +491,10 @@ export default function HostCreateRoomPage() {
                   <FieldLabel htmlFor="internet-cost">{t('host.createRoom.internetCost')}</FieldLabel>
                   <input
                     id="internet-cost"
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
                     value={internetCost}
-                    onChange={(event) => setInternetCost(event.target.value)}
+                    onChange={(event) => setInternetCost(formatMoneyInput(event.target.value))}
                     placeholder="0"
                     className={priceInputClass}
                   />
@@ -463,10 +503,10 @@ export default function HostCreateRoomPage() {
                   <FieldLabel htmlFor="service-fee">{t('host.createRoom.serviceFee')}</FieldLabel>
                   <input
                     id="service-fee"
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="numeric"
                     value={serviceFee}
-                    onChange={(event) => setServiceFee(event.target.value)}
+                    onChange={(event) => setServiceFee(formatMoneyInput(event.target.value))}
                     placeholder="0"
                     className={priceInputClass}
                   />
@@ -499,6 +539,13 @@ export default function HostCreateRoomPage() {
 
           <SectionCard number={5} title={t('host.createRoom.images')}>
             <input
+              ref={mainImageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleMainImageSelected}
+            />
+            <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
@@ -507,26 +554,80 @@ export default function HostCreateRoomPage() {
               onChange={handleFilesSelected}
             />
 
-            <button
-              type="button"
-              onClick={handleUploadClick}
-              className="flex min-h-[188px] w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#C3C6D7] bg-[#F3F3FE]/40 px-4 text-center transition hover:border-[#004AC6]/50 hover:bg-[#F3F3FE]"
-            >
-              <svg className="h-11 w-11 text-[#004AC6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.6-1.9A4.5 4.5 0 0 1 18 15h-3" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 12v8m0-8l-3 3m3-3l3 3" />
-              </svg>
-              <span className="mt-4 text-base font-bold leading-6 text-[#191B23]">
-                {t('host.createRoom.uploadImages')}
-              </span>
-              <span className="text-sm leading-[21px] text-[#434655]">
-                {t('host.createRoom.uploadInstruction')} {MIN_REQUIRED_IMAGES} {t('host.createRoom.uploadInstructionMax')} {MAX_ROOM_IMAGES})
-              </span>
-            </button>
+            <div className="grid gap-5 md:grid-cols-2">
+              <div>
+                <div className="mb-2">
+                  <h3 className="text-sm font-bold text-[#191B23]">{t('host.createRoom.mainImage')}</h3>
+                  <p className="text-xs text-[#434655]">{t('host.createRoom.mainImageHint')}</p>
+                </div>
+                {mainImage ? (
+                  <figure className="group relative aspect-[459/308] overflow-hidden rounded-lg border-2 border-[#004AC6] bg-[#E1E2ED]">
+                    <img src={mainImage.url} alt={t('host.createRoom.mainImage')} className="h-full w-full object-cover" />
+                    <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 opacity-0 transition group-hover:opacity-100">
+                      <button
+                        type="button"
+                        onClick={() => mainImageInputRef.current?.click()}
+                        className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-[#004AC6] shadow-sm"
+                      >
+                        {t('host.createRoom.changeMainImage')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRemoveMainImage}
+                        aria-label={t('host.createRoom.removeMainImage')}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#BA1A1A] shadow-sm"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12M10 11v6M14 11v6M9 7V5h6v2M8 7l1 13h6l1-13" />
+                        </svg>
+                      </button>
+                    </div>
+                    <figcaption className="absolute bottom-2 left-2 rounded bg-[#004AC6] px-2 py-1 text-[10px] font-bold leading-[15px] text-white">
+                      {t('host.createRoom.coverImage')}
+                    </figcaption>
+                  </figure>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => mainImageInputRef.current?.click()}
+                    className="flex aspect-[459/308] w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#004AC6] bg-[#F3F3FE]/40 px-4 text-center transition hover:bg-[#F3F3FE]"
+                  >
+                    <svg className="h-10 w-10 text-[#004AC6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 5h16v14H4zM8 13l2-2 3 3 2-2 3 3" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m-2-2h4" />
+                    </svg>
+                    <span className="mt-3 text-sm font-bold text-[#004AC6]">{t('host.createRoom.chooseMainImage')}</span>
+                  </button>
+                )}
+              </div>
+
+              <div>
+                <div className="mb-2">
+                  <h3 className="text-sm font-bold text-[#191B23]">{t('host.createRoom.roomImages')}</h3>
+                  <p className="text-xs text-[#434655]">
+                    {t('host.createRoom.uploadInstruction')} {MIN_REQUIRED_IMAGES} {t('host.createRoom.uploadInstructionMax')} {MAX_ROOM_IMAGES})
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleUploadClick}
+                  disabled={images.length >= MAX_ROOM_IMAGES - 1}
+                  className="flex aspect-[459/308] w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#C3C6D7] bg-[#F3F3FE]/40 px-4 text-center transition hover:border-[#004AC6]/50 hover:bg-[#F3F3FE] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <svg className="h-11 w-11 text-[#004AC6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.6-1.9A4.5 4.5 0 0 1 18 15h-3" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 12v8m0-8l-3 3m3-3l3 3" />
+                  </svg>
+                  <span className="mt-4 text-base font-bold leading-6 text-[#191B23]">
+                    {t('host.createRoom.uploadImages')}
+                  </span>
+                </button>
+              </div>
+            </div>
 
             <div className="mt-4 flex items-center justify-between text-xs font-bold leading-3 tracking-[0.6px]">
               <span className="text-[#434655]">
-                {t('host.createRoom.uploaded')} ({images.length}/{MAX_ROOM_IMAGES})
+                {t('host.createRoom.uploaded')} ({imageCount}/{MAX_ROOM_IMAGES})
               </span>
               {missingImages > 0 && (
                 <span className="text-[#BA1A1A]">{t('host.createRoom.needMore')} {missingImages} {t('host.createRoom.needMoreSuffix')}</span>
@@ -555,7 +656,7 @@ export default function HostCreateRoomPage() {
                       </button>
                     </div>
                     <figcaption className="absolute bottom-1 left-1 rounded bg-[#004AC6] px-2 py-1 text-[10px] font-bold leading-[15px] text-white">
-                      {idx === 0 ? t('host.createRoom.coverImage') : `${t('host.createRoom.imagePrefix')} ${idx + 1}`}
+                      {`${t('host.createRoom.imagePrefix')} ${idx + 1}`}
                     </figcaption>
                   </figure>
                 ))}
