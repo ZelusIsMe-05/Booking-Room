@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useState, useEffect } from 'react';
+import { FormEvent, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthInput from '@/components/auth/AuthInput';
 import { EyeIcon, EyeOffIcon, LockIcon, MailIcon, UserIcon, CalendarIcon, GenderIcon } from '@/components/auth/AuthIcons';
@@ -35,6 +35,17 @@ export default function RegisterPage() {
   const [serverSuccess, setServerSuccess] = useState('');
   const [cooldown, setCooldown] = useState(0);
 
+  // Refs for focusing/scrolling to invalid fields
+  const fullNameRef = useRef<HTMLInputElement>(null);
+  const usernameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const phoneNumberRef = useRef<HTMLInputElement>(null);
+  const genderRef = useRef<HTMLSelectElement>(null);
+  const dateOfBirthRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmPasswordRef = useRef<HTMLInputElement>(null);
+  const otpRef = useRef<HTMLInputElement>(null);
+
   // Timer for resend cooldown
   useEffect(() => {
     if (cooldown > 0) {
@@ -43,17 +54,87 @@ export default function RegisterPage() {
     }
   }, [cooldown]);
 
-  const errors = {
-    fullName: submitted && !fullName.trim() ? 'Vui lòng nhập họ và tên.' : '',
-    username: submitted && !username.trim() ? 'Vui lòng nhập tên đăng nhập.' : '',
-    email: submitted && !email.trim() ? 'Vui lòng nhập email.' : '',
-    phoneNumber: submitted && !phoneNumber.trim() ? 'Vui lòng nhập số điện thoại.' : '',
-    password: submitted && password.length < 8 ? 'Mật khẩu phải từ 8 ký tự trở lên.' : '',
-    confirmPassword: submitted && password !== confirmPassword ? 'Mật khẩu xác nhận không khớp.' : '',
-    gender: submitted && !gender ? 'Vui lòng chọn giới tính.' : '',
-    dateOfBirth: submitted && !dateOfBirth ? 'Vui lòng chọn ngày sinh.' : '',
-    otp: submitted && step === 2 && otp.length !== 6 ? 'Mã OTP gồm 6 chữ số.' : '',
+  const getValidationErrors = () => {
+    const errs: Record<string, string> = {};
+
+    // 1. Họ và tên: Bắt buộc, tối đa 255 ký tự
+    if (!fullName.trim()) {
+      errs.fullName = 'Vui lòng nhập họ và tên.';
+    } else if (fullName.length > 255) {
+      errs.fullName = 'Họ tên tối đa 255 ký tự.';
+    }
+
+    // 2. Tên đăng nhập: 3-50 ký tự, bắt đầu bằng chữ thường, chỉ gồm chữ thường/số/`_`/`.`
+    const usernameRegex = /^[a-z][a-z0-9_.]{2,49}$/;
+    if (!username.trim()) {
+      errs.username = 'Vui lòng nhập tên đăng nhập.';
+    } else if (!usernameRegex.test(username.trim().toLowerCase())) {
+      errs.username = 'Tên đăng nhập từ 3–50 ký tự, bắt đầu bằng chữ thường, chỉ gồm chữ thường/số/`_`/`.`';
+    }
+
+    // 3. Email: Định dạng hợp lệ
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim()) {
+      errs.email = 'Vui lòng nhập email.';
+    } else if (!emailRegex.test(email.trim())) {
+      errs.email = 'Email không hợp lệ.';
+    }
+
+    // 4. Số điện thoại: 10 số, bắt đầu bằng 0
+    const phoneRegex = /^0\d{9}$/;
+    if (!phoneNumber.trim()) {
+      errs.phoneNumber = 'Vui lòng nhập số điện thoại.';
+    } else if (!phoneRegex.test(phoneNumber.trim())) {
+      errs.phoneNumber = 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.';
+    }
+
+    // 5. Giới tính
+    if (!gender) {
+      errs.gender = 'Vui lòng chọn giới tính.';
+    } else if (!['MALE', 'FEMALE', 'OTHER'].includes(gender)) {
+      errs.gender = 'Vui lòng chọn giới tính hợp lệ.';
+    }
+
+    // 6. Ngày sinh: YYYY-MM-DD, không ở tương lai
+    if (!dateOfBirth) {
+      errs.dateOfBirth = 'Vui lòng chọn ngày sinh.';
+    } else if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) {
+      errs.dateOfBirth = 'Ngày sinh không đúng định dạng (YYYY-MM-DD).';
+    } else {
+      const birthDate = new Date(dateOfBirth);
+      if (birthDate > new Date()) {
+        errs.dateOfBirth = 'Ngày sinh không được ở tương lai.';
+      }
+    }
+
+    // 7. Mật khẩu: Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+    if (!password) {
+      errs.password = 'Vui lòng nhập mật khẩu.';
+    } else if (!passwordRegex.test(password)) {
+      errs.password = 'Mật khẩu tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.';
+    }
+
+    // 8. Xác nhận mật khẩu
+    if (!confirmPassword) {
+      errs.confirmPassword = 'Vui lòng xác nhận mật khẩu.';
+    } else if (password !== confirmPassword) {
+      errs.confirmPassword = 'Mật khẩu xác nhận không khớp.';
+    }
+
+    // OTP
+    if (step === 2) {
+      if (!otp) {
+        errs.otp = 'Vui lòng nhập mã OTP.';
+      } else if (otp.length !== 6) {
+        errs.otp = 'Mã OTP gồm 6 chữ số.';
+      }
+    }
+
+    return errs;
   };
+
+  const errors = submitted ? getValidationErrors() : {};
 
   const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -61,17 +142,35 @@ export default function RegisterPage() {
     setServerError('');
     setServerSuccess('');
 
-    // Pre-check fields
-    if (
-      !fullName.trim() ||
-      !username.trim() ||
-      !email.trim() ||
-      !phoneNumber.trim() ||
-      password.length < 8 ||
-      password !== confirmPassword ||
-      !gender ||
-      !dateOfBirth
-    ) {
+    const validationErrors = getValidationErrors();
+
+    if (Object.keys(validationErrors).length > 0) {
+      // Focus and scroll to the first invalid field
+      if (validationErrors.fullName) {
+        fullNameRef.current?.focus();
+        fullNameRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (validationErrors.username) {
+        usernameRef.current?.focus();
+        usernameRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (validationErrors.email) {
+        emailRef.current?.focus();
+        emailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (validationErrors.phoneNumber) {
+        phoneNumberRef.current?.focus();
+        phoneNumberRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (validationErrors.gender) {
+        genderRef.current?.focus();
+        genderRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (validationErrors.dateOfBirth) {
+        dateOfBirthRef.current?.focus();
+        dateOfBirthRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (validationErrors.password) {
+        passwordRef.current?.focus();
+        passwordRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (validationErrors.confirmPassword) {
+        confirmPasswordRef.current?.focus();
+        confirmPasswordRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
@@ -106,7 +205,12 @@ export default function RegisterPage() {
     setServerError('');
     setServerSuccess('');
 
-    if (otp.length !== 6) return;
+    const validationErrors = getValidationErrors();
+    if (validationErrors.otp) {
+      otpRef.current?.focus();
+      otpRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -197,6 +301,7 @@ export default function RegisterPage() {
           </div>
 
           <AuthInput
+            ref={fullNameRef}
             label="Họ và tên"
             value={fullName}
             onChange={setFullName}
@@ -206,6 +311,7 @@ export default function RegisterPage() {
           />
           
           <AuthInput
+            ref={usernameRef}
             label="Tên đăng nhập"
             value={username}
             onChange={setUsername}
@@ -219,6 +325,7 @@ export default function RegisterPage() {
           />
 
           <AuthInput
+            ref={emailRef}
             label="Email"
             value={email}
             onChange={setEmail}
@@ -228,6 +335,7 @@ export default function RegisterPage() {
           />
 
           <AuthInput
+            ref={phoneNumberRef}
             label="Số điện thoại"
             value={phoneNumber}
             onChange={setPhoneNumber}
@@ -247,6 +355,7 @@ export default function RegisterPage() {
             <span className={`flex min-h-11 items-center gap-3 rounded-lg border bg-booking-surface px-3 text-booking-muted transition focus-within:border-booking-primary ${errors.gender ? 'border-red-400' : 'border-booking-border'}`}>
               <GenderIcon className="h-5 w-5 shrink-0" />
               <select
+                ref={genderRef}
                 value={gender}
                 onChange={(event) => setGender(event.target.value as any)}
                 className="w-full bg-transparent text-base text-booking-text outline-none cursor-pointer appearance-none"
@@ -260,6 +369,7 @@ export default function RegisterPage() {
           </div>
 
           <AuthInput
+            ref={dateOfBirthRef}
             label="Ngày sinh"
             value={dateOfBirth}
             onChange={setDateOfBirth}
@@ -270,6 +380,7 @@ export default function RegisterPage() {
           />
 
           <AuthInput
+            ref={passwordRef}
             label="Mật khẩu"
             value={password}
             onChange={setPassword}
@@ -290,6 +401,7 @@ export default function RegisterPage() {
           />
 
           <AuthInput
+            ref={confirmPasswordRef}
             label="Xác nhận mật khẩu"
             value={confirmPassword}
             onChange={setConfirmPassword}
@@ -331,6 +443,7 @@ export default function RegisterPage() {
           </div>
 
           <AuthInput
+            ref={otpRef}
             label="Mã OTP kích hoạt"
             value={otp}
             onChange={setOtp}

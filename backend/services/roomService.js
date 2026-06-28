@@ -157,13 +157,26 @@ async function getRoomById(roomId, user = null) {
     if (rawRoom.status === 'AVAILABLE') {
       room = rawRoom;
     } else if (rawRoom.status === 'LOCKED') {
-      // Check if this tenant has an active processing deposit
+      // Check if this tenant has an active processing deposit or a confirmed deposit with a successful transaction
       if (user && user.role === 'TENANT') {
         const activeDeposit = await db('deposits')
           .where({ tenant_id: user.userId, room_id: roomId, status: 'PROCESSING' })
           .first();
         if (activeDeposit) {
           room = rawRoom;
+        } else {
+          const confirmedDeposit = await db('deposits as d')
+            .join('transactions as t', 'd.deposit_id', 't.deposit_id')
+            .where({
+              'd.tenant_id': user.userId,
+              'd.room_id': roomId,
+              'd.status': 'CONFIRMED',
+              't.status': 'SUCCESS'
+            })
+            .first();
+          if (confirmedDeposit) {
+            room = rawRoom;
+          }
         }
       }
       if (!room) {
